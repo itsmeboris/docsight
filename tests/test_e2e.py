@@ -5,6 +5,7 @@ from doc_updater.cli import cli
 
 
 class TestE2E:
+    """End-to-end integration tests for the full CLI workflow."""
     def test_e2e_direct_staleness(self, tmp_repo):
         """baseline → change signature → check detects stale"""
         runner = CliRunner()
@@ -54,6 +55,7 @@ class TestE2E:
         assert result.exit_code == 1
 
     def test_e2e_full_flow_json(self, tmp_repo):
+        """Baseline then check --json returns valid summary with all docs healthy."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
@@ -63,6 +65,7 @@ class TestE2E:
         assert data["summary"]["healthy"] >= 2
 
     def test_e2e_status_after_baseline(self, tmp_repo):
+        """Status command works immediately after baseline."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
