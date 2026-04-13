@@ -69,3 +69,25 @@ class TestE2E:
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "status"])
         assert result.exit_code == 0
         assert "healthy" in result.output.lower() or "doc" in result.output.lower()
+
+    def test_e2e_old_format_baseline_returns_unverified(self, tmp_repo):
+        """Regression: baselines without format_version must NOT produce false HEALTHY.
+        They must produce UNVERIFIED and warn the user to re-baseline."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        # Create a normal baseline first
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+        # Simulate old-format state by removing format_version
+        state_path = tmp_repo / ".doc-updater" / "state.json"
+        state = json.loads(state_path.read_text())
+        state.pop("format_version", None)
+        state_path.write_text(json.dumps(state))
+        # Now check — must NOT be false-green
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--json"])
+        # Warning goes to stderr (click err=True), JSON is in output
+        # Extract JSON from output (skip any warning lines)
+        json_str = result.output[result.output.index("{"):]
+        data = json.loads(json_str)
+        # Should have zero healthy (all unverified), not false healthy
+        assert data["summary"]["healthy"] == 0
+        assert data["summary"]["unverified"] >= 1
