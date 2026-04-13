@@ -144,7 +144,7 @@ class _CallExtractor(ast.NodeVisitor):
         # Maps local var name -> class name (from `var = ClassName()`)
         self._bindings: dict[str, str] = {}
 
-    def visit_Assign(self, node: ast.Assign) -> None:
+    def visit_Assign(self, node: ast.Assign) -> None:  # pylint: disable=invalid-name
         """Record ``var = ClassName()`` bindings."""
         if (
             isinstance(node.value, ast.Call)
@@ -157,7 +157,7 @@ class _CallExtractor(ast.NodeVisitor):
             self._bindings[var_name] = class_name
         self.generic_visit(node)
 
-    def visit_Call(self, node: ast.Call) -> None:
+    def visit_Call(self, node: ast.Call) -> None:  # pylint: disable=invalid-name
         """Record calls, resolving local bindings where possible."""
         if isinstance(node.func, ast.Name):
             self.calls.append(node.func.id)

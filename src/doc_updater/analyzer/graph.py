@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html as _html
 import json
 from collections import deque
 from pathlib import Path
@@ -10,6 +11,21 @@ from typing import Any
 import networkx as nx
 
 from doc_updater.analyzer.base import EdgeKind, GraphEdge
+
+# Node shape/colour constants for HTML export
+_KIND_SHAPE: dict[str, str] = {
+    "FUNCTION": "circle",
+    "METHOD": "circle",
+    "CLASS": "diamond",
+    "MODULE": "box",
+}
+_KIND_COLOR: dict[str, str] = {
+    "FUNCTION": "#7EC8A0",
+    "METHOD": "#67B7DC",
+    "CLASS": "#4A90D9",
+    "MODULE": "#A0A0A0",
+}
+_STALE_COLOR = "#FF4444"
 
 
 class CodeGraph:
@@ -113,20 +129,6 @@ class CodeGraph:
         vis_nodes: list[dict[str, Any]] = []
         vis_edges: list[dict[str, Any]] = []
 
-        _KIND_SHAPE: dict[str, str] = {
-            "FUNCTION": "circle",
-            "METHOD": "circle",
-            "CLASS": "diamond",
-            "MODULE": "box",
-        }
-        _KIND_COLOR: dict[str, str] = {
-            "FUNCTION": "#7EC8A0",
-            "METHOD": "#67B7DC",
-            "CLASS": "#4A90D9",
-            "MODULE": "#A0A0A0",
-        }
-        _STALE_COLOR = "#FF4444"
-
         for node_id in self._g.nodes:
             kind = self._g.nodes[node_id].get("kind", "")
             is_stale = node_id in stale_set
@@ -134,7 +136,6 @@ class CodeGraph:
             shape = _KIND_SHAPE.get(kind, "ellipse")
             # Short label: last component of element_id
             label = node_id.split("::")[-1] if "::" in node_id else node_id
-            import html as _html
             safe_id = _html.escape(node_id)
             safe_kind = _html.escape(kind)
             safe_label = _html.escape(label)
@@ -244,7 +245,8 @@ class CodeGraph:
     <div class="legend-item"><div class="legend-dot" style="background:#C8A020;"></div> Inherits (dashed)</div>
   </div>
   <div id="stats">
-    Nodes: <b>{n_nodes}</b> &nbsp;|&nbsp; Edges: <b>{n_edges}</b> &nbsp;|&nbsp; Stale: <b>{n_stale}</b> &nbsp;|&nbsp; Stale docs: <b>{stale_doc_count}</b>
+    Nodes: <b>{n_nodes}</b> &nbsp;|&nbsp; Edges: <b>{n_edges}</b>
+    &nbsp;|&nbsp; Stale: <b>{n_stale}</b> &nbsp;|&nbsp; Stale docs: <b>{stale_doc_count}</b>
   </div>
   <div id="controls">
     <input id="search" type="text" placeholder="Search nodes..." />

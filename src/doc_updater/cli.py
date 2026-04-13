@@ -100,11 +100,11 @@ def index(ctx: click.Context, skip_errors: bool) -> None:
 
     # Resolve calls and build graph
     edges = analyzer.resolve_calls(all_elements, analyses)
-    graph = CodeGraph()
+    dep_graph = CodeGraph()
     for eid, el in all_elements.items():
-        graph.add_element(eid, el.kind.value)
+        dep_graph.add_element(eid, el.kind.value)
     for edge in edges:
-        graph.add_edge(edge)
+        dep_graph.add_edge(edge)
 
     # Persist
     store.save_index(all_elements)
@@ -190,8 +190,6 @@ def scan(ctx: click.Context) -> None:
 
 def _run_index(repo: Path, store: JsonStore) -> None:
     """Internal helper: run the index step with skip_errors=True."""
-    from doc_updater.analyzer.python_analyzer import PythonAnalyzer
-
     store_dir = repo / ".doc-updater"
     analyzer = PythonAnalyzer()
     py_files = sorted(repo.rglob("*.py"))
@@ -210,11 +208,11 @@ def _run_index(repo: Path, store: JsonStore) -> None:
             all_elements[el.element_id] = el
 
     edges = analyzer.resolve_calls(all_elements, analyses)
-    graph = CodeGraph()
+    dep_graph = CodeGraph()
     for eid, el in all_elements.items():
-        graph.add_element(eid, el.kind.value)
+        dep_graph.add_element(eid, el.kind.value)
     for edge in edges:
-        graph.add_edge(edge)
+        dep_graph.add_edge(edge)
 
     store.save_index(all_elements)
     store.save_file_analyses(analyses)
@@ -332,11 +330,11 @@ def check(
     edges = store.load_edges()
 
     # Rebuild graph
-    graph = CodeGraph()
+    dep_graph = CodeGraph()
     for eid, el in elements.items():
-        graph.add_element(eid, el.kind.value)
+        dep_graph.add_element(eid, el.kind.value)
     for edge in edges:
-        graph.add_edge(edge)
+        dep_graph.add_edge(edge)
 
     effective_max_hops = 0 if direct_only else max_hops
 
@@ -358,7 +356,7 @@ def check(
                     direct_element_ids.append(eid)
 
             # Compute dependency closure
-            dep_closure = graph.dependency_closure(
+            dep_closure = dep_graph.dependency_closure(
                 direct_element_ids, max_hops=effective_max_hops
             )
 
@@ -385,6 +383,7 @@ def check(
                 "issues": [],
             }
         state["last_report"] = baseline_report
+        state["format_version"] = 2  # relative-path element IDs
 
         store.save_state(state)
         click.echo("Baseline stored.")
@@ -395,7 +394,18 @@ def check(
     # If a ref existed in baseline but is now absent from current mapped refs
     # (e.g., function was renamed), inject it back into mappings so the
     # detector can flag it as reference_lost.
+    #
+    # Skip if baseline was created with an older format (absolute paths)
+    # to avoid false reference_lost on upgrade.
     verified = state.get("verified", {})
+    state_version = state.get("format_version", 1)
+    if state_version < 2 and verified:
+        click.echo(
+            "Warning: baseline was created with an older version. "
+            "Run 'doc-updater check --baseline' to re-baseline.",
+            err=True,
+        )
+        verified = {}  # skip reference-lost for old baselines
     for doc_path, doc_verified in verified.items():
         if doc_path not in mappings:
             continue
@@ -424,7 +434,7 @@ def check(
         elements=elements,
         mappings=mappings,
         state=state,
-        graph=graph,
+        graph=dep_graph,
         max_hops=effective_max_hops,
     )
     report = detector.check_all()
@@ -434,9 +444,9 @@ def check(
 
     serializable_report: dict[str, dict] = {}
     for doc_path, doc_data in report.items():
-        status = doc_data.get("status")
+        doc_status = doc_data.get("status")
         status_str = (
-            status.value if isinstance(status, DocStatus) else str(status)
+            doc_status.value if isinstance(doc_status, DocStatus) else str(doc_status)
         )
         issues_out = []
         for issue in doc_data.get("issues", []):
@@ -520,7 +530,6 @@ def graph(ctx: click.Context, export_format: str, output: str | None) -> None:
         elements = store.load_index()
 
     edges = store.load_edges()
-    mappings = store.load_mappings()
 
     # Build graph
     graph_obj = CodeGraph()
@@ -535,8 +544,8 @@ def graph(ctx: click.Context, export_format: str, output: str | None) -> None:
     stale_elements: list[str] = []
     for _doc_path, doc_data in last_report.items():
         if isinstance(doc_data, dict):
-            status = doc_data.get("status", "")
-            if status in ("stale", "STALE"):
+            doc_status = doc_data.get("status", "")
+            if doc_status in ("stale", "STALE"):
                 for issue in doc_data.get("issues", []):
                     eid = issue.get("element_id", "") if isinstance(issue, dict) else ""
                     if eid:

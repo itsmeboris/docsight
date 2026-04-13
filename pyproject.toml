@@ -37,3 +37,19 @@ source = ["doc_updater"]
 [tool.black]
 line-length = 88
 target-version = ["py312"]
+
+[tool.pylint.messages_control]
+disable = [
+    "too-many-instance-attributes",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-return-statements",
+    "import-outside-toplevel",
+    "duplicate-code",
+]
+
+[tool.pylint.format]
+max-line-length = 120

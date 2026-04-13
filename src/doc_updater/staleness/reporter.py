@@ -29,16 +29,13 @@ def summarize(report: dict[str, dict]) -> dict[str, int]:
     for doc_data in report.values():
         counts["total"] += 1
         status = doc_data.get("status")
-        if status == DocStatus.HEALTHY or status == DocStatus.HEALTHY.value:
+        if status in (DocStatus.HEALTHY, DocStatus.HEALTHY.value):
             counts["healthy"] += 1
-        elif status == DocStatus.STALE or status == DocStatus.STALE.value:
+        elif status in (DocStatus.STALE, DocStatus.STALE.value):
             counts["stale"] += 1
-        elif (
-            status == DocStatus.POSSIBLY_STALE
-            or status == DocStatus.POSSIBLY_STALE.value
-        ):
+        elif status in (DocStatus.POSSIBLY_STALE, DocStatus.POSSIBLY_STALE.value):
             counts["possibly_stale"] += 1
-        elif status == DocStatus.UNVERIFIED or status == DocStatus.UNVERIFIED.value:
+        elif status in (DocStatus.UNVERIFIED, DocStatus.UNVERIFIED.value):
             counts["unverified"] += 1
     return counts
 
