@@ -1,5 +1,7 @@
 """Tests for doc_updater.cli."""
 
+import json
+
 import pytest
 from click.testing import CliRunner
 
@@ -69,3 +71,57 @@ class TestCliInit:
         assert ".doc-updater/" in content
         # The entry should appear on its own line
         assert "*.pyc\n.doc-updater/\n" == content
+
+
+# ---------------------------------------------------------------------------
+# index command
+# ---------------------------------------------------------------------------
+
+
+class TestCliIndex:
+    def test_index_command_creates_index_json(self, tmp_repo):
+        runner = CliRunner()
+        # First init, then index
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        assert result.exit_code == 0, result.output
+        index_file = tmp_repo / ".doc-updater" / "index.json"
+        assert index_file.exists()
+
+    def test_index_finds_expected_elements(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        index_file = tmp_repo / ".doc-updater" / "index.json"
+        index = json.loads(index_file.read_text(encoding="utf-8"))
+        names = {v["name"] for v in index.values()}
+        assert "AuthManager" in names
+        assert "validate_token" in names
+        assert "authenticate" in names
+        assert "cache_lookup" in names
+
+    def test_index_output_message(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        assert result.exit_code == 0, result.output
+        assert "Indexed" in result.output
+
+    def test_index_fails_on_syntax_error(self, tmp_path):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        # Create a broken Python file
+        src = tmp_path / "bad.py"
+        src.write_text("def broken(\n    this is garbage\n", encoding="utf-8")
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        assert result.exit_code == 1
+
+    def test_index_skip_errors_flag(self, tmp_path):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        src = tmp_path / "bad.py"
+        src.write_text("def broken(\n    this is garbage\n", encoding="utf-8")
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "index", "--skip-errors"]
+        )
+        assert result.exit_code == 0, result.output
