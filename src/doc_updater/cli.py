@@ -81,8 +81,8 @@ def index(ctx: click.Context, skip_errors: bool) -> None:
     all_errors: list[str] = []
 
     for py_file in py_files:
-        fa = analyzer.analyze_file(py_file)
-        analyses[str(py_file)] = fa
+        fa = analyzer.analyze_file(py_file, repo_root=repo)
+        analyses[fa.file] = fa
         if fa.parse_errors:
             all_errors.extend(fa.parse_errors)
             if not skip_errors:
@@ -201,8 +201,8 @@ def _run_index(repo: Path, store: JsonStore) -> None:
 
     analyses = {}
     for py_file in py_files:
-        fa = analyzer.analyze_file(py_file)
-        analyses[str(py_file)] = fa
+        fa = analyzer.analyze_file(py_file, repo_root=repo)
+        analyses[fa.file] = fa
 
     all_elements = {}
     for fa in analyses.values():

@@ -134,11 +134,15 @@ class CodeGraph:
             shape = _KIND_SHAPE.get(kind, "ellipse")
             # Short label: last component of element_id
             label = node_id.split("::")[-1] if "::" in node_id else node_id
+            import html as _html
+            safe_id = _html.escape(node_id)
+            safe_kind = _html.escape(kind)
+            safe_label = _html.escape(label)
             vis_nodes.append(
                 {
                     "id": node_id,
-                    "label": label,
-                    "title": f"<b>{node_id}</b><br>Kind: {kind}"
+                    "label": safe_label,
+                    "title": f"<b>{safe_id}</b><br>Kind: {safe_kind}"
                     + (" <b>[STALE]</b>" if is_stale else ""),
                     "color": {"background": color, "border": "#222222"},
                     "shape": shape,

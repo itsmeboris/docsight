@@ -132,7 +132,11 @@ class StalenessDetector:
 
             # Check transitive changes via dependency_hashes
             # dependency_hashes maps dep_element_id -> verified_hash (with hops embedded)
-            for dep_id, dep_info in dependency_hashes.items():
+            # Respect max_hops: skip deps beyond the configured limit
+            if self._max_hops <= 0:
+                # direct-only mode: skip transitive checks entirely
+                pass
+            for dep_id, dep_info in (dependency_hashes.items() if self._max_hops > 0 else []):
                 # dep_info can be a dict with "hash" and "hops", or just a string hash
                 if isinstance(dep_info, dict):
                     verified_dep_hash = dep_info.get("hash")
@@ -140,6 +144,10 @@ class StalenessDetector:
                 else:
                     verified_dep_hash = dep_info
                     hops = 1
+
+                # Skip dependencies beyond max_hops
+                if hops > self._max_hops:
+                    continue
 
                 if dep_id not in self._elements:
                     continue

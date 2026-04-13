@@ -179,9 +179,15 @@ class PythonAnalyzer(CodeAnalyzer):
     def supported_extensions(self) -> list[str]:
         return [".py"]
 
-    def analyze_file(self, path: Path) -> FileAnalysis:
+    def analyze_file(self, path: Path, repo_root: Path | None = None) -> FileAnalysis:
         """Parse *path* and return its FileAnalysis."""
-        rel_path = str(path)
+        if repo_root is not None:
+            try:
+                rel_path = str(path.relative_to(repo_root))
+            except ValueError:
+                rel_path = str(path)
+        else:
+            rel_path = str(path)
         source = path.read_text(encoding="utf-8")
 
         try:
