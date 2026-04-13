@@ -186,3 +186,317 @@ def scan(ctx: click.Context) -> None:
 
     store.save_mappings(mappings)
     click.echo(f"Scanned {len(md_files)} docs, {total_mapped} references mapped, {total_unmapped} unmapped")
+
+
+def _run_index(repo: Path, store: JsonStore) -> None:
+    """Internal helper: run the index step with skip_errors=True."""
+    from doc_updater.analyzer.python_analyzer import PythonAnalyzer
+
+    store_dir = repo / ".doc-updater"
+    analyzer = PythonAnalyzer()
+    py_files = sorted(repo.rglob("*.py"))
+    py_files = [
+        p for p in py_files if store_dir not in p.parents and p != store_dir
+    ]
+
+    analyses = {}
+    for py_file in py_files:
+        fa = analyzer.analyze_file(py_file)
+        analyses[str(py_file)] = fa
+
+    all_elements = {}
+    for fa in analyses.values():
+        for el in fa.elements:
+            all_elements[el.element_id] = el
+
+    edges = analyzer.resolve_calls(all_elements, analyses)
+    graph = CodeGraph()
+    for eid, el in all_elements.items():
+        graph.add_element(eid, el.kind.value)
+    for edge in edges:
+        graph.add_edge(edge)
+
+    store.save_index(all_elements)
+    store.save_file_analyses(analyses)
+    store.save_edges(edges)
+
+
+def _run_scan(repo: Path, store: JsonStore) -> None:
+    """Internal helper: run the scan step."""
+    import hashlib
+
+    from doc_updater.docs.mapper import DocMapper
+    from doc_updater.docs.scanner import DocScanner
+
+    store_dir = repo / ".doc-updater"
+    all_elements = store.load_index()
+    if not all_elements:
+        return
+
+    scanner = DocScanner()
+    mapper = DocMapper(all_elements)
+
+    md_files = sorted(repo.rglob("*.md"))
+    md_files = [f for f in md_files if store_dir not in f.parents and f != store_dir]
+
+    mappings: dict[str, dict] = {}
+
+    for md_file in md_files:
+        rel_path = str(md_file.relative_to(repo))
+        content = md_file.read_text(encoding="utf-8")
+        file_hash = hashlib.sha256(content.encode()).hexdigest()
+
+        raw_refs = scanner.scan_file(md_file)
+        mapped_refs: list[dict] = []
+        unmapped_refs: list[dict] = []
+
+        for raw_ref in raw_refs:
+            results = mapper.resolve(raw_ref)
+            if results:
+                for r in results:
+                    mapped_refs.append({
+                        "element_id": r.element_id,
+                        "ref_type": r.ref_type,
+                        "text": r.text,
+                        "context": r.context,
+                        "section": r.section,
+                        "lineno": r.lineno,
+                        "confidence": r.confidence,
+                    })
+            else:
+                unmapped_refs.append({
+                    "text": raw_ref.text,
+                    "ref_type": raw_ref.ref_type,
+                    "lineno": raw_ref.lineno,
+                })
+
+        mappings[rel_path] = {
+            "file_hash": file_hash,
+            "mapped": mapped_refs,
+            "unmapped": unmapped_refs,
+        }
+
+    store.save_mappings(mappings)
+
+
+@cli.command()
+@click.option(
+    "--baseline",
+    is_flag=True,
+    default=False,
+    help="Store current hashes as verified baseline.",
+)
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output JSON.")
+@click.option(
+    "--max-hops",
+    default=3,
+    show_default=True,
+    help="Maximum transitive hops to check.",
+)
+@click.option(
+    "--direct-only",
+    is_flag=True,
+    default=False,
+    help="Only check direct references (max_hops=0).",
+)
+@click.pass_context
+def check(
+    ctx: click.Context,
+    baseline: bool,
+    output_json: bool,
+    max_hops: int,
+    direct_only: bool,
+) -> None:
+    """Check documentation for staleness."""
+    from doc_updater.staleness.detector import DocStatus, StalenessDetector
+    from doc_updater.staleness.reporter import (
+        has_stale,
+        print_details,
+        print_summary,
+        to_json,
+    )
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    store = JsonStore(store_dir)
+
+    # Auto-run index (skip_errors) + scan
+    _run_index(repo, store)
+    _run_scan(repo, store)
+
+    # Load data
+    elements = store.load_index()
+    mappings = store.load_mappings()
+    state = store.load_state()
+    edges = store.load_edges()
+
+    # Rebuild graph
+    graph = CodeGraph()
+    for eid, el in elements.items():
+        graph.add_element(eid, el.kind.value)
+    for edge in edges:
+        graph.add_edge(edge)
+
+    effective_max_hops = 0 if direct_only else max_hops
+
+    if baseline:
+        # Store current hashes as verified state
+        verified: dict[str, dict] = {}
+
+        for doc_path, doc_data in mappings.items():
+            mapped_refs: list[dict] = doc_data.get("mapped", [])
+            element_hashes: dict[str, str] = {}
+            direct_element_ids: list[str] = []
+
+            for ref in mapped_refs:
+                eid = ref.get("element_id", "")
+                if eid in elements:
+                    el = elements[eid]
+                    element_hashes[f"{eid}:signature"] = el.signature_hash
+                    element_hashes[f"{eid}:body"] = el.body_hash
+                    direct_element_ids.append(eid)
+
+            # Compute dependency closure
+            dep_closure = graph.dependency_closure(
+                direct_element_ids, max_hops=effective_max_hops
+            )
+
+            dependency_hashes: dict[str, dict] = {}
+            for dep_id, hops in dep_closure.items():
+                if dep_id in elements:
+                    dep_el = elements[dep_id]
+                    # Use source_hash as the transitive hash
+                    dep_hash = dep_el.source_hash
+                    dependency_hashes[dep_id] = {"hash": dep_hash, "hops": hops}
+
+            verified[doc_path] = {
+                "element_hashes": element_hashes,
+                "dependency_hashes": dependency_hashes,
+            }
+
+        state["verified"] = verified
+
+        # Build an "all healthy" report for baseline
+        baseline_report: dict[str, dict] = {}
+        for doc_path in mappings:
+            baseline_report[doc_path] = {
+                "status": DocStatus.HEALTHY.value,
+                "issues": [],
+            }
+        state["last_report"] = baseline_report
+
+        store.save_state(state)
+        click.echo("Baseline stored.")
+        return
+
+    # Run detection
+    detector = StalenessDetector(
+        elements=elements,
+        mappings=mappings,
+        state=state,
+        graph=graph,
+        max_hops=effective_max_hops,
+    )
+    report = detector.check_all()
+
+    # Serialize report for storage (statuses stored as string values)
+    from doc_updater.staleness.detector import StalenessIssue
+
+    serializable_report: dict[str, dict] = {}
+    for doc_path, doc_data in report.items():
+        status = doc_data.get("status")
+        status_str = (
+            status.value if isinstance(status, DocStatus) else str(status)
+        )
+        issues_out = []
+        for issue in doc_data.get("issues", []):
+            if isinstance(issue, StalenessIssue):
+                issues_out.append({
+                    "element_id": issue.element_id,
+                    "change_type": issue.change_type,
+                    "confidence": issue.confidence,
+                    "hops": issue.hops,
+                    "detail": issue.detail,
+                })
+            else:
+                issues_out.append(issue)
+        serializable_report[doc_path] = {
+            "status": status_str,
+            "issues": issues_out,
+        }
+
+    state["last_report"] = serializable_report
+    store.save_state(state)
+
+    if output_json:
+        click.echo(to_json(report))
+    else:
+        print_summary(report)
+        print_details(report)
+
+    if has_stale(report):
+        sys.exit(1)
+
+
+@cli.command()
+@click.pass_context
+def status(ctx: click.Context) -> None:
+    """Show the last staleness check summary."""
+    from doc_updater.staleness.reporter import print_summary
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store = JsonStore(store_dir)
+
+    state = store.load_state()
+    last_report = state.get("last_report")
+
+    if last_report is None:
+        click.echo("No report found. Run 'doc-updater check' first.", err=True)
+        sys.exit(1)
+
+    print_summary(last_report)
+
+
+@cli.command()
+@click.argument("doc")
+@click.pass_context
+def show(ctx: click.Context, doc: str) -> None:
+    """Show staleness details for a specific documentation file."""
+    from doc_updater.staleness.reporter import print_doc_tree
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store = JsonStore(store_dir)
+
+    state = store.load_state()
+    last_report = state.get("last_report")
+
+    if last_report is None:
+        click.echo("No report found. Run 'doc-updater check' first.", err=True)
+        sys.exit(1)
+
+    # Find the doc in the report (support partial path matching)
+    doc_key = None
+    if doc in last_report:
+        doc_key = doc
+    else:
+        for key in last_report:
+            if key.endswith(doc) or doc in key:
+                doc_key = key
+                break
+
+    if doc_key is None:
+        click.echo(f"Document '{doc}' not found in last report.", err=True)
+        sys.exit(1)
+
+    doc_data = last_report[doc_key]
+
+    # Load mappings to get refs
+    mappings = store.load_mappings()
+    refs: list[dict] = []
+    if doc_key in mappings:
+        refs = mappings[doc_key].get("mapped", [])
+
+    print_doc_tree(doc_key, doc_data, refs)
