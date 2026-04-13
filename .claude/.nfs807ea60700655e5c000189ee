@@ -1,0 +1,17 @@
+{
+  "enabledMcpjsonServers": [
+    "MaaS GitLab",
+    "MaaS Glean",
+    "MaaS Share Point",
+    "NVCARPS",
+    "chipsim",
+    "confluence",
+    "deview",
+    "gerrit",
+    "jenkins",
+    "n8n",
+    "noga",
+    "p4",
+    "redmine"
+  ]
+}
