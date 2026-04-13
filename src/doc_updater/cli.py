@@ -401,11 +401,13 @@ def check(
     state_version = state.get("format_version", 1)
     if state_version < 2 and verified:
         click.echo(
-            "Warning: baseline was created with an older version. "
+            "Warning: baseline was created with an older format (absolute paths). "
             "Run 'doc-updater check --baseline' to re-baseline.",
             err=True,
         )
-        verified = {}  # skip reference-lost for old baselines
+        # Clear verified entirely so detector returns UNVERIFIED (not false HEALTHY)
+        verified = {}
+        state["verified"] = {}
     for doc_path, doc_verified in verified.items():
         if doc_path not in mappings:
             continue
