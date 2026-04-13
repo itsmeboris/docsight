@@ -127,6 +127,21 @@ class TestSearchUsesHidden:
         assert "hidden: !match" in content or '"hidden"' in content or "hidden:" in content
 
 
+class TestHtmlEscaping:
+    """Regression test: HTML injection in tooltips must be escaped."""
+
+    def test_tooltip_escapes_html(self, tmp_path: Path) -> None:
+        g = CodeGraph()
+        malicious_id = '<img src=x onerror=alert(1)>'
+        g.add_element(malicious_id, "function")
+        out = tmp_path / "graph.html"
+        g.export_html(out)
+        content = out.read_text(encoding="utf-8")
+        # The tooltip (title field) must contain escaped HTML, not raw
+        # vis.js renders the title as HTML, so unescaped = XSS
+        assert "&lt;img" in content  # escaped version present in tooltip
+
+
 class TestExportJson:
     def test_export_json_creates_file(self, simple_graph: CodeGraph, tmp_path: Path) -> None:
         out = tmp_path / "graph.json"

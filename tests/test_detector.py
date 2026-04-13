@@ -319,6 +319,41 @@ class TestStalenessDetectorTransitive:
         assert len(transitive) == 0
 
 
+class TestMaxHopsEnforcement:
+    """Regression: max_hops=0 must skip transitive checks entirely."""
+
+    def test_direct_only_skips_transitive(self):
+        elements = {
+            "mod.func": _make_element("sig_aaa", "body_bbb"),
+            "mod.dep": _make_element("dep_NEW", "dep_body"),
+        }
+        mappings = {
+            "docs/guide.md": {
+                "mapped": [
+                    {"element_id": "mod.func", "confidence": 0.9, "ref_type": "code"}
+                ]
+            }
+        }
+        state = {
+            "verified": {
+                "docs/guide.md": {
+                    "element_hashes": {
+                        "mod.func:signature": "sig_aaa",
+                        "mod.func:body": "body_bbb",
+                    },
+                    "dependency_hashes": {
+                        "mod.dep": {"hash": "dep_OLD", "hops": 1},
+                    },
+                }
+            }
+        }
+        det = _detector(elements, mappings, state, max_hops=0)
+        report = det.check_all()
+        issues = report["docs/guide.md"]["issues"]
+        transitive = [i for i in issues if i.change_type == "transitive"]
+        assert len(transitive) == 0  # max_hops=0 skips transitive
+
+
 class TestStalenessDetectorUnverified:
     def test_unverified_no_state(self):
         """No verified state for doc → UNVERIFIED."""

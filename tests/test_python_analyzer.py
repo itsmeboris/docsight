@@ -295,6 +295,19 @@ class TestCreatesModuleElement:
         mod_b = next(e for e in fa_b.elements if e.kind == ElementKind.MODULE)
         assert mod_a.body_hash == mod_b.body_hash
 
+    def test_repo_root_makes_relative_paths(self, analyzer, tmp_path):
+        """Regression: repo_root param produces relative element_ids."""
+        sub = tmp_path / "src"
+        sub.mkdir()
+        path = sub / "mymod.py"
+        path.write_text("def foo(): pass\n", encoding="utf-8")
+        fa = analyzer.analyze_file(path, repo_root=tmp_path)
+        assert fa.file == "src/mymod.py"
+        mod = next(e for e in fa.elements if e.kind == ElementKind.MODULE)
+        assert mod.element_id == "src/mymod.py::__module__"
+        func = next(e for e in fa.elements if e.name == "foo")
+        assert func.element_id == "src/mymod.py::foo"
+
 
 # ---------------------------------------------------------------------------
 # resolve_calls
