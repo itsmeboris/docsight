@@ -374,3 +374,60 @@ class TestCliShow:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "show", "docs/auth-guide.md"])
         assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# graph command
+# ---------------------------------------------------------------------------
+
+
+class TestCliGraph:
+    def test_graph_command_creates_html(self, tmp_repo):
+        """graph command should create graph.html in the repo root."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        assert result.exit_code == 0, result.output
+        assert (tmp_repo / "graph.html").exists()
+
+    def test_graph_command_html_contains_vis_network(self, tmp_repo):
+        """graph.html should contain vis.Network reference."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        content = (tmp_repo / "graph.html").read_text(encoding="utf-8")
+        assert "vis.Network" in content
+
+    def test_graph_command_json_export(self, tmp_repo):
+        """graph --export json should create a JSON file."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "graph", "--export", "json"]
+        )
+        assert result.exit_code == 0, result.output
+        assert (tmp_repo / "graph.json").exists()
+
+    def test_graph_command_custom_output(self, tmp_repo):
+        """graph -o <path> should write to the specified path."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        out = tmp_repo / "my_graph.html"
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "graph", "-o", str(out)]
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+
+    def test_graph_command_auto_indexes(self, tmp_repo):
+        """graph command should auto-index if no index exists."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        # Do NOT run index manually
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        assert result.exit_code == 0, result.output
+        assert (tmp_repo / "graph.html").exists()

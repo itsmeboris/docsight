@@ -20,7 +20,7 @@ from src.cache import cache_lookup
 class AuthManager:
     \"\"\"Manages authentication for the application.\"\"\"
 
-    def validate_token(self, token: str) -> bool:
+    def validate_token(self, token: str, strict: bool = True) -> bool:
         \"\"\"Validate an authentication token.\"\"\"
         cached = cache_lookup(token)
         if cached:
@@ -59,19 +59,19 @@ def cache_store(key: str, value: str) -> None:
         """\
 # Authentication Guide
 
-This guide covers the AuthManager class and the authenticate() function
+This guide covers the `AuthManager` class and the `authenticate()` function
 defined in src/auth.py.
 
 ## Usage
 
-Use validate_token() to check whether a token is valid:
+Use `validate_token()` to check whether a token is valid:
 
 ```python
 mgr = AuthManager()
 result = mgr.validate_token("my-token")
 ```
 
-You can also call authenticate() directly.
+You can also call `authenticate()` directly.
 """,
         encoding="utf-8",
     )
@@ -81,15 +81,15 @@ You can also call authenticate() directly.
         """\
 # Cache Guide
 
-This guide covers cache_lookup() and cache_store() from src/cache.py.
+This guide covers `cache_lookup()` and `cache_store()` from src/cache.py.
 
 ## Lookup
 
-Call cache_lookup() to retrieve a cached value by key.
+Call `cache_lookup()` to retrieve a cached value by key.
 
 ## Storage
 
-Call cache_store() to persist a key/value pair.
+Call `cache_store()` to persist a key/value pair.
 """,
         encoding="utf-8",
     )

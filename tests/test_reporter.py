@@ -74,7 +74,7 @@ class TestHasStale:
         [
             ([DocStatus.HEALTHY], False),
             ([DocStatus.STALE], True),
-            ([DocStatus.POSSIBLY_STALE], False),
+            ([DocStatus.POSSIBLY_STALE], True),
             ([DocStatus.UNVERIFIED], False),
             ([DocStatus.HEALTHY, DocStatus.STALE], True),
             ([], False),

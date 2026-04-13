@@ -390,6 +390,35 @@ def check(
         click.echo("Baseline stored.")
         return
 
+    # Reference-lost comparison (Codex fix #23):
+    # Compare previously-baselined refs against current mappings.
+    # If a ref existed in baseline but is now absent from current mapped refs
+    # (e.g., function was renamed), inject it back into mappings so the
+    # detector can flag it as reference_lost.
+    verified = state.get("verified", {})
+    for doc_path, doc_verified in verified.items():
+        if doc_path not in mappings:
+            continue
+        current_mapped_eids = {
+            r.get("element_id")
+            for r in mappings[doc_path].get("mapped", [])
+        }
+        for key in doc_verified.get("element_hashes", {}):
+            # Keys are "{eid}:signature" or "{eid}:body"
+            if not key.endswith(":signature"):
+                continue
+            eid = key[: -len(":signature")]
+            if eid not in current_mapped_eids:
+                # This element was in the baseline but is no longer mapped
+                # Inject a synthetic mapped ref so the detector picks it up
+                mappings[doc_path].setdefault("mapped", []).append({
+                    "element_id": eid,
+                    "ref_type": "baseline_reference_lost",
+                    "confidence": 0.95,
+                    "lineno": 0,
+                    "text": eid.split("::")[-1] if "::" in eid else eid,
+                })
+
     # Run detection
     detector = StalenessDetector(
         elements=elements,
@@ -457,6 +486,72 @@ def status(ctx: click.Context) -> None:
         sys.exit(1)
 
     print_summary(last_report)
+
+
+@cli.command()
+@click.option(
+    "--export",
+    "export_format",
+    default="html",
+    show_default=True,
+    type=click.Choice(["html", "json"], case_sensitive=False),
+    help="Export format: html or json.",
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    metavar="PATH",
+    help="Output file path (default: <repo>/graph.html or graph.json).",
+)
+@click.pass_context
+def graph(ctx: click.Context, export_format: str, output: str | None) -> None:
+    """Export the code dependency graph."""
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    store = JsonStore(store_dir)
+
+    # Auto-run index + scan if index is missing
+    elements = store.load_index()
+    if not elements:
+        _run_index(repo, store)
+        _run_scan(repo, store)
+        elements = store.load_index()
+
+    edges = store.load_edges()
+    mappings = store.load_mappings()
+
+    # Build graph
+    graph_obj = CodeGraph()
+    for eid, el in elements.items():
+        graph_obj.add_element(eid, el.kind.value)
+    for edge in edges:
+        graph_obj.add_edge(edge)
+
+    # Determine stale elements from last report
+    state = store.load_state()
+    last_report = state.get("last_report", {})
+    stale_elements: list[str] = []
+    for _doc_path, doc_data in last_report.items():
+        if isinstance(doc_data, dict):
+            status = doc_data.get("status", "")
+            if status in ("stale", "STALE"):
+                for issue in doc_data.get("issues", []):
+                    eid = issue.get("element_id", "") if isinstance(issue, dict) else ""
+                    if eid:
+                        stale_elements.append(eid)
+
+    # Determine output path
+    ext = "json" if export_format.lower() == "json" else "html"
+    out_path = Path(output) if output else repo / f"graph.{ext}"
+
+    if export_format.lower() == "json":
+        graph_obj.export_json(out_path)
+    else:
+        graph_obj.export_html(out_path, stale_elements=stale_elements, doc_mappings=last_report)
+
+    click.echo(f"Graph exported to {out_path}")
 
 
 @cli.command()

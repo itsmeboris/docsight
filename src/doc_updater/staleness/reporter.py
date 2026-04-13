@@ -44,10 +44,13 @@ def summarize(report: dict[str, dict]) -> dict[str, int]:
 
 
 def has_stale(report: dict[str, dict]) -> bool:
-    """Return True if any document is STALE."""
+    """Return True if any document is STALE or POSSIBLY_STALE."""
     for doc_data in report.values():
         status = doc_data.get("status")
-        if status == DocStatus.STALE or status == DocStatus.STALE.value:
+        if status in (
+            DocStatus.STALE, DocStatus.STALE.value,
+            DocStatus.POSSIBLY_STALE, DocStatus.POSSIBLY_STALE.value,
+        ):
             return True
     return False
 
@@ -177,4 +180,12 @@ def to_json(report: dict[str, dict]) -> str:
             "issues": issues,
         }
     counts = summarize(report)
-    return json.dumps({"summary": counts, "docs": serializable}, indent=2)
+    stale_docs = [
+        {"doc": doc_path, **doc_data}
+        for doc_path, doc_data in serializable.items()
+        if doc_data["status"] in ("stale", "possibly_stale")
+    ]
+    return json.dumps(
+        {"summary": counts, "stale_docs": stale_docs, "docs": serializable},
+        indent=2,
+    )

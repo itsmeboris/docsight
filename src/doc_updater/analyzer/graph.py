@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections import deque
+from pathlib import Path
 from typing import Any
 
 import networkx as nx
@@ -76,6 +78,214 @@ class CodeGraph:
             for u, v in self._g.edges
         ]
         return {"nodes": nodes, "edges": edges}
+
+    def export_html(
+        self,
+        path: str | Path,
+        stale_elements: list[str] | None = None,
+        doc_mappings: dict[str, Any] | None = None,
+    ) -> None:
+        """Export the graph as an interactive HTML file using vis.js.
+
+        Parameters
+        ----------
+        path:
+            Destination file path for the HTML output.
+        stale_elements:
+            Optional list of element IDs that should be highlighted red.
+        doc_mappings:
+            Optional mapping of doc paths to their reference data (used for
+            tooltip context).
+        """
+        stale_set: set[str] = set(stale_elements or [])
+        doc_mappings = doc_mappings or {}
+
+        # Collect stale counts from doc_mappings for the stats panel
+        stale_doc_count = len(
+            [
+                dp
+                for dp, dd in doc_mappings.items()
+                if isinstance(dd, dict) and dd.get("status") in ("stale", "STALE")
+            ]
+        )
+
+        # Build vis.js node / edge structures
+        vis_nodes: list[dict[str, Any]] = []
+        vis_edges: list[dict[str, Any]] = []
+
+        _KIND_SHAPE: dict[str, str] = {
+            "FUNCTION": "circle",
+            "METHOD": "circle",
+            "CLASS": "diamond",
+            "MODULE": "box",
+        }
+        _KIND_COLOR: dict[str, str] = {
+            "FUNCTION": "#7EC8A0",
+            "METHOD": "#67B7DC",
+            "CLASS": "#4A90D9",
+            "MODULE": "#A0A0A0",
+        }
+        _STALE_COLOR = "#FF4444"
+
+        for node_id in self._g.nodes:
+            kind = self._g.nodes[node_id].get("kind", "")
+            is_stale = node_id in stale_set
+            color = _STALE_COLOR if is_stale else _KIND_COLOR.get(kind, "#A0A0A0")
+            shape = _KIND_SHAPE.get(kind, "ellipse")
+            # Short label: last component of element_id
+            label = node_id.split("::")[-1] if "::" in node_id else node_id
+            vis_nodes.append(
+                {
+                    "id": node_id,
+                    "label": label,
+                    "title": f"<b>{node_id}</b><br>Kind: {kind}"
+                    + (" <b>[STALE]</b>" if is_stale else ""),
+                    "color": {"background": color, "border": "#222222"},
+                    "shape": shape,
+                    "font": {"color": "#E0E0E0"},
+                }
+            )
+
+        for i, (u, v) in enumerate(self._g.edges):
+            edge_kind = self._g.edges[u, v].get("kind", "CALLS")
+            dashes = edge_kind == "INHERITS"
+            edge_color = "#C8A020" if dashes else "#888888"
+            vis_edges.append(
+                {
+                    "id": i,
+                    "from": u,
+                    "to": v,
+                    "dashes": dashes,
+                    "color": {"color": edge_color},
+                    "arrows": "to",
+                    "title": edge_kind,
+                }
+            )
+
+        n_nodes = len(vis_nodes)
+        n_edges = len(vis_edges)
+        n_stale = len(stale_set)
+
+        nodes_json = json.dumps(vis_nodes)
+        edges_json = json.dumps(vis_edges)
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>doc-updater: Code Graph</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    body {{
+      background: #0D1117;
+      color: #E0E0E0;
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }}
+    #legend {{
+      background: #161B22;
+      padding: 8px 16px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      border-bottom: 1px solid #30363D;
+    }}
+    .legend-item {{
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }}
+    .legend-dot {{
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+    }}
+    #stats {{
+      background: #161B22;
+      padding: 6px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid #30363D;
+    }}
+    #controls {{
+      background: #161B22;
+      padding: 6px 16px;
+      border-bottom: 1px solid #30363D;
+    }}
+    #search {{
+      background: #21262D;
+      color: #E0E0E0;
+      border: 1px solid #30363D;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      width: 260px;
+    }}
+    #network {{
+      width: 100%;
+      height: calc(100vh - 120px);
+    }}
+  </style>
+</head>
+<body>
+  <div id="legend">
+    <strong>Legend:</strong>
+    <div class="legend-item"><div class="legend-dot" style="background:#4A90D9;"></div> Class</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#67B7DC;"></div> Method</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7EC8A0;"></div> Function</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FF4444;"></div> Stale</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#888888;"></div> Calls (solid)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#C8A020;"></div> Inherits (dashed)</div>
+  </div>
+  <div id="stats">
+    Nodes: <b>{n_nodes}</b> &nbsp;|&nbsp; Edges: <b>{n_edges}</b> &nbsp;|&nbsp; Stale: <b>{n_stale}</b> &nbsp;|&nbsp; Stale docs: <b>{stale_doc_count}</b>
+  </div>
+  <div id="controls">
+    <input id="search" type="text" placeholder="Search nodes..." />
+  </div>
+  <div id="network"></div>
+  <script>
+    var nodesData = {nodes_json};
+    var edgesData = {edges_json};
+
+    var nodesById = {{}};
+    nodesData.forEach(function(n) {{ nodesById[n.id] = n; }});
+
+    var nodes = new vis.DataSet(nodesData);
+    var edges = new vis.DataSet(edgesData);
+    var container = document.getElementById("network");
+    var data = {{ nodes: nodes, edges: edges }};
+    var options = {{
+      background: "#0D1117",
+      physics: {{ stabilization: true }},
+      nodes: {{ borderWidth: 1 }},
+      edges: {{ smooth: {{ type: "dynamic" }} }},
+    }};
+    var network = new vis.Network(container, data, options);
+
+    document.getElementById("search").addEventListener("input", function() {{
+      var term = this.value.toLowerCase();
+      var updates = [];
+      nodesData.forEach(function(n) {{
+        var match = term === "" || n.label.toLowerCase().includes(term) || n.id.toLowerCase().includes(term);
+        updates.push({{ id: n.id, hidden: !match }});
+      }});
+      nodes.update(updates);
+    }});
+  </script>
+</body>
+</html>
+"""
+        Path(path).write_text(html, encoding="utf-8")
+
+    def export_json(self, path: str | Path) -> None:
+        """Export the graph as a JSON file."""
+        Path(path).write_text(
+            json.dumps(self.to_serializable(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     @classmethod
     def from_serializable(cls, data: dict[str, Any]) -> "CodeGraph":
