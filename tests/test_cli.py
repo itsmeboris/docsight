@@ -125,3 +125,60 @@ class TestCliIndex:
             cli, ["--repo", str(tmp_path), "index", "--skip-errors"]
         )
         assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# scan command
+# ---------------------------------------------------------------------------
+
+
+class TestCliScan:
+    def test_scan_command(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        assert result.exit_code == 0, result.output
+        assert "Scanned" in result.output
+
+        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        assert mappings_file.exists()
+
+        mappings = json.loads(mappings_file.read_text(encoding="utf-8"))
+        # auth-guide.md should have mappings
+        auth_key = next((k for k in mappings if "auth-guide" in k), None)
+        assert auth_key is not None
+        refs = mappings[auth_key]
+        # Should have at least one mapped ref with a text field
+        mapped = refs.get("mapped", [])
+        assert len(mapped) > 0
+        assert any("text" in r for r in mapped)
+
+    def test_scan_requires_index(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        # Do NOT run index first
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        assert result.exit_code != 0
+
+    def test_scan_output_format(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        assert result.exit_code == 0, result.output
+        # Output should say "Scanned N docs, M references mapped, K unmapped"
+        assert "docs" in result.output
+        assert "mapped" in result.output
+
+    def test_scan_unmapped_refs_stored(self, tmp_repo):
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings = json.loads(mappings_file.read_text(encoding="utf-8"))
+        # Each doc entry should have 'mapped' and 'unmapped' keys
+        for doc_key, doc_val in mappings.items():
+            assert "mapped" in doc_val, f"Missing 'mapped' key in {doc_key}"
+            assert "unmapped" in doc_val, f"Missing 'unmapped' key in {doc_key}"
