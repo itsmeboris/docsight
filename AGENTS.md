@@ -7,9 +7,11 @@
 
 ## Build & Test
 - Install: `pip install -e ".[dev]"`
-- Test: `pytest -v` (235 tests, target 96%+ coverage)
-- Lint: `pylint src/doc_updater/` (target 10.00/10)
+- Test: `pytest -v` (241 tests, target 96%+ coverage)
+- Lint: `pylint src/doc_updater/` and `pylint tests/` (target 10.00/10)
 - All pylint config is in `pyproject.toml` under `[tool.pylint.*]`
+- All test classes and methods must have docstrings (pylint enforces this)
+- Stop hooks run pylint on tests too — fix before committing
 
 ## Architecture Rules
 - `CodeElement.raw_calls` stores unresolved AST call strings; the graph is the sole source of resolved dependencies
@@ -27,3 +29,5 @@
 - HTML graph export must html.escape all user-controlled content in tooltips
 - max_hops flag must be enforced in both baseline closure and detection
 - `analyze_file()` accepts optional `repo_root` param for relative path generation
+- `clean` command: gitignore cleanup runs BEFORE rmtree to avoid stale state on partial failure
+- CLI commands that add `doc-updater init` must also consider `doc-updater clean` for symmetry

@@ -56,6 +56,37 @@ def init(ctx: click.Context) -> None:
 
 @cli.command()
 @click.option(
+    "--keep-gitignore",
+    is_flag=True,
+    default=False,
+    help="Do not remove the .doc-updater/ entry from .gitignore.",
+)
+@click.pass_context
+def clean(ctx: click.Context, keep_gitignore: bool) -> None:
+    """Remove all doc-updater data from the repository."""
+    import shutil
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+
+    if not store_dir.exists():
+        click.echo("Nothing to clean — .doc-updater/ does not exist.")
+        return
+
+    if not keep_gitignore:
+        gitignore = repo / ".gitignore"
+        if gitignore.exists():
+            lines = gitignore.read_text(encoding="utf-8").splitlines(keepends=True)
+            lines = [ln for ln in lines if ln.strip() != ".doc-updater/"]
+            gitignore.write_text("".join(lines), encoding="utf-8")
+            click.echo("Removed .doc-updater/ entry from .gitignore")
+
+    shutil.rmtree(store_dir)
+    click.echo(f"Removed {store_dir}")
+
+
+@cli.command()
+@click.option(
     "--skip-errors",
     is_flag=True,
     default=False,

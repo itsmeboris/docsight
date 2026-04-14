@@ -9,13 +9,17 @@ from doc_updater.cli import cli
 
 
 class TestCliInit:
+    """Tests for the init command."""
+
     def test_init_creates_doc_updater_dir(self, tmp_path):
+        """init creates the .doc-updater directory."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         assert result.exit_code == 0, result.output
         assert (tmp_path / ".doc-updater").is_dir()
 
     def test_init_adds_gitignore_entry(self, tmp_path):
+        """init adds .doc-updater/ entry to .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         gitignore = tmp_path / ".gitignore"
@@ -23,6 +27,7 @@ class TestCliInit:
         assert ".doc-updater/" in gitignore.read_text(encoding="utf-8")
 
     def test_init_idempotent_dir(self, tmp_path):
+        """init is idempotent and does not fail when run twice."""
         runner = CliRunner()
         result1 = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         result2 = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
@@ -31,6 +36,7 @@ class TestCliInit:
         assert (tmp_path / ".doc-updater").is_dir()
 
     def test_init_idempotent_gitignore_no_duplicate(self, tmp_path):
+        """init does not add duplicate .doc-updater/ entries to .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
@@ -39,6 +45,7 @@ class TestCliInit:
         assert content.count(".doc-updater/") == 1
 
     def test_init_appends_to_existing_gitignore(self, tmp_path):
+        """init appends .doc-updater/ to an existing .gitignore without clobbering it."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("*.pyc\n__pycache__/\n", encoding="utf-8")
         runner = CliRunner()
@@ -49,12 +56,14 @@ class TestCliInit:
         assert ".doc-updater/" in content
 
     def test_init_outputs_success_message(self, tmp_path):
+        """init prints a success message on exit."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         assert result.exit_code == 0
         assert "Initialized" in result.output or "initialized" in result.output
 
     def test_repo_defaults_to_cwd(self, tmp_path, monkeypatch):
+        """init uses the current working directory when --repo is omitted."""
         monkeypatch.chdir(tmp_path)
         runner = CliRunner()
         result = runner.invoke(cli, ["init"])
@@ -78,8 +87,61 @@ class TestCliInit:
 # ---------------------------------------------------------------------------
 
 
+class TestCliClean:
+    """Tests for the clean command."""
+
+    def test_clean_removes_store_dir(self, tmp_path):
+        """clean removes the .doc-updater/ directory."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        assert (tmp_path / ".doc-updater").exists()
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
+        assert result.exit_code == 0
+        assert not (tmp_path / ".doc-updater").exists()
+
+    def test_clean_removes_gitignore_entry(self, tmp_path):
+        """clean also removes .doc-updater/ from .gitignore by default."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        assert ".doc-updater/" in (tmp_path / ".gitignore").read_text()
+        runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
+        content = (tmp_path / ".gitignore").read_text()
+        assert ".doc-updater/" not in content
+
+    def test_clean_keep_gitignore(self, tmp_path):
+        """clean --keep-gitignore preserves the .gitignore entry."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "clean", "--keep-gitignore"])
+        assert ".doc-updater/" in (tmp_path / ".gitignore").read_text()
+
+    def test_clean_noop_when_missing(self, tmp_path):
+        """clean is safe when .doc-updater/ does not exist."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
+        assert result.exit_code == 0
+        assert "nothing" in result.output.lower()
+
+    def test_clean_preserves_other_gitignore_entries(self, tmp_path):
+        """clean only removes the .doc-updater/ line, not other entries."""
+        (tmp_path / ".gitignore").write_text("*.pyc\n.doc-updater/\n__pycache__/\n")
+        (tmp_path / ".doc-updater").mkdir()
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
+        content = (tmp_path / ".gitignore").read_text()
+        assert "*.pyc" in content
+        assert "__pycache__/" in content
+        assert ".doc-updater/" not in content
+
+
+# ---------------------------------------------------------------------------
+
+
 class TestCliIndex:
+    """Tests for the index command."""
+
     def test_index_command_creates_index_json(self, tmp_repo):
+        """index creates index.json in the .doc-updater directory."""
         runner = CliRunner()
         # First init, then index
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
@@ -89,6 +151,7 @@ class TestCliIndex:
         assert index_file.exists()
 
     def test_index_finds_expected_elements(self, tmp_repo):
+        """index discovers expected classes and functions in the repo."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -101,6 +164,7 @@ class TestCliIndex:
         assert "cache_lookup" in names
 
     def test_index_output_message(self, tmp_repo):
+        """index prints an 'Indexed' summary message on success."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -108,6 +172,7 @@ class TestCliIndex:
         assert "Indexed" in result.output
 
     def test_index_fails_on_syntax_error(self, tmp_path):
+        """index exits with code 1 when a Python file has a syntax error."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         # Create a broken Python file
@@ -117,6 +182,7 @@ class TestCliIndex:
         assert result.exit_code == 1
 
     def test_index_skip_errors_flag(self, tmp_path):
+        """index --skip-errors continues past syntax errors and exits 0."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         src = tmp_path / "bad.py"
@@ -133,7 +199,10 @@ class TestCliIndex:
 
 
 class TestCliScan:
+    """Tests for the scan command."""
+
     def test_scan_command(self, tmp_repo):
+        """scan produces mappings.json with mapped and unmapped refs."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -155,6 +224,7 @@ class TestCliScan:
         assert any("text" in r for r in mapped)
 
     def test_scan_requires_index(self, tmp_repo):
+        """scan exits non-zero when no index has been built yet."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         # Do NOT run index first
@@ -162,6 +232,7 @@ class TestCliScan:
         assert result.exit_code != 0
 
     def test_scan_output_format(self, tmp_repo):
+        """scan output includes doc count and mapped/unmapped reference counts."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -172,6 +243,7 @@ class TestCliScan:
         assert "mapped" in result.output
 
     def test_scan_unmapped_refs_stored(self, tmp_repo):
+        """scan stores both mapped and unmapped keys for every doc entry."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -190,6 +262,8 @@ class TestCliScan:
 
 
 class TestCliCheck:
+    """Tests for the check command."""
+
     def test_check_baseline_exit_zero(self, tmp_repo):
         """check --baseline should exit 0 and store verified state."""
         runner = CliRunner()
@@ -243,8 +317,7 @@ class TestCliCheck:
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
 
         # Check which elements got mapped
-        import json as _json
-        mappings = _json.loads(
+        mappings = json.loads(
             (tmp_repo / ".doc-updater" / "mappings.json").read_text(encoding="utf-8")
         )
         # Find any mapped element_id to determine what to change
@@ -313,6 +386,8 @@ class TestCliCheck:
 
 
 class TestCliStatus:
+    """Tests for the status command."""
+
     def test_status_shows_last_report(self, tmp_repo):
         """status should display summary after baseline."""
         runner = CliRunner()
@@ -344,6 +419,8 @@ class TestCliStatus:
 
 
 class TestCliShow:
+    """Tests for the show command."""
+
     def test_show_displays_doc_details(self, tmp_repo):
         """show should display tree for a known doc."""
         runner = CliRunner()
@@ -382,6 +459,8 @@ class TestCliShow:
 
 
 class TestCliGraph:
+    """Tests for the graph command."""
+
     def test_graph_command_creates_html(self, tmp_repo):
         """graph command should create graph.html in the repo root."""
         runner = CliRunner()
