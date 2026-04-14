@@ -77,9 +77,11 @@ class TestCliInit:
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         content = gitignore.read_text(encoding="utf-8")
+        # Each entry should appear on its own line after the existing content
         assert ".doc-updater/" in content
-        # The entry should appear on its own line
-        assert "*.pyc\n.doc-updater/\n" == content
+        assert "graph.html" in content
+        assert "graph.json" in content
+        assert content.startswith("*.pyc\n")
 
 
 # ---------------------------------------------------------------------------
@@ -99,14 +101,18 @@ class TestCliClean:
         assert result.exit_code == 0
         assert not (tmp_path / ".doc-updater").exists()
 
-    def test_clean_removes_gitignore_entry(self, tmp_path):
-        """clean also removes .doc-updater/ from .gitignore by default."""
+    def test_clean_removes_gitignore_entries(self, tmp_path):
+        """clean removes all doc-updater entries from .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
-        assert ".doc-updater/" in (tmp_path / ".gitignore").read_text()
+        gi = (tmp_path / ".gitignore").read_text()
+        assert ".doc-updater/" in gi
+        assert "graph.html" in gi
         runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         content = (tmp_path / ".gitignore").read_text()
         assert ".doc-updater/" not in content
+        assert "graph.html" not in content
+        assert "graph.json" not in content
 
     def test_clean_keep_gitignore(self, tmp_path):
         """clean --keep-gitignore preserves the .gitignore entry."""

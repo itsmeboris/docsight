@@ -1,0 +1,20 @@
+[     671ms] [ERROR] %cUnknown option detected: "background" in 
+
+options = {
+  background
+}
+
+
+Perhaps it was misplaced? Matching option found at: 
+
+options = {
+  edges: {
+    background
+  }
+}
+
+
+ background: #FFeeee; color: #dd0000 @ https://unpkg.com/vis-network/standalone/umd/vis-network.min.js:32
+[     671ms] [ERROR] %cErrors have been found in the supplied options object. background: #FFeeee; color: #dd0000 @ https://unpkg.com/vis-network/standalone/umd/vis-network.min.js:32
+[     785ms] [INFO] This network could not be positioned by this version of the improved layout algorithm. Please disable improvedLayout for better performance. @ https://unpkg.com/vis-network/standalone/umd/vis-network.min.js:32
+[    5468ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8901/favicon.ico:0

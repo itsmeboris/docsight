@@ -37,19 +37,21 @@ def init(ctx: click.Context) -> None:
     # Create the store directory (idempotent).
     store_dir.mkdir(parents=True, exist_ok=True)
 
-    # Add entry to .gitignore (idempotent — only add if not already present).
+    # Add entries to .gitignore (idempotent — only add if not already present).
     gitignore = repo / ".gitignore"
-    entry = ".doc-updater/"
+    entries = [".doc-updater/", "graph.html", "graph.json"]
 
     if gitignore.exists():
         existing = gitignore.read_text(encoding="utf-8")
-        if entry not in existing:
-            # Ensure we start on a fresh line.
-            if existing and not existing.endswith("\n"):
-                existing += "\n"
-            gitignore.write_text(existing + entry + "\n", encoding="utf-8")
     else:
-        gitignore.write_text(entry + "\n", encoding="utf-8")
+        existing = ""
+
+    additions = [e for e in entries if e not in existing]
+    if additions:
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        existing += "\n".join(additions) + "\n"
+        gitignore.write_text(existing, encoding="utf-8")
 
     click.echo(f"Initialized doc-updater in {store_dir}")
 
@@ -77,7 +79,8 @@ def clean(ctx: click.Context, keep_gitignore: bool) -> None:
         gitignore = repo / ".gitignore"
         if gitignore.exists():
             lines = gitignore.read_text(encoding="utf-8").splitlines(keepends=True)
-            lines = [ln for ln in lines if ln.strip() != ".doc-updater/"]
+            remove = {".doc-updater/", "graph.html", "graph.json"}
+            lines = [ln for ln in lines if ln.strip() not in remove]
             gitignore.write_text("".join(lines), encoding="utf-8")
             click.echo("Removed .doc-updater/ entry from .gitignore")
 
@@ -591,7 +594,7 @@ def graph(ctx: click.Context, export_format: str, output: str | None) -> None:
     if export_format.lower() == "json":
         graph_obj.export_json(out_path)
     else:
-        graph_obj.export_html(out_path, stale_elements=stale_elements, doc_mappings=last_report)
+        graph_obj.export_html(out_path, stale_elements=stale_elements)
 
     click.echo(f"Graph exported to {out_path}")
 

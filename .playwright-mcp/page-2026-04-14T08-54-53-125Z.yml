@@ -1,0 +1,14 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "doc-updater graph" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5]: Class
+      - generic [ref=e7]: Method
+      - generic [ref=e9]: Function
+      - generic [ref=e11]: Module
+      - generic [ref=e13]: Stale
+  - generic [ref=e15]:
+    - textbox "Search nodes..." [ref=e16]
+    - generic [ref=e17]: "Nodes: 437"
+    - generic [ref=e18]: "Edges: 497"
+    - generic [ref=e19]: "Stale: 0"
