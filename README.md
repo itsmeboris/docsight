@@ -336,11 +336,20 @@ Generates a self-contained HTML report at `.docsight/report.html` with:
 
 ## Claude Code Plugin
 
-docsight ships as a Claude Code plugin. Install it to get slash commands in any conversation:
+docsight ships as a Claude Code plugin. Install it to get slash commands in any conversation.
+
+From a terminal:
 
 ```bash
 claude plugin marketplace add itsmeboris/docsight
 claude plugin install docsight@docsight
+```
+
+Or from inside Claude Code:
+
+```
+/plugin marketplace add itsmeboris/docsight
+/plugin install docsight@docsight
 /reload-plugins
 ```
 
