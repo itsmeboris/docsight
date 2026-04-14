@@ -176,14 +176,29 @@ doc-updater check --baseline
 
 ### CI integration
 
+The baseline must be created **locally** and committed — CI only checks against it:
+
+```bash
+# One-time setup (run locally, commit .doc-updater/state.json)
+doc-updater init
+doc-updater check --baseline
+git add .doc-updater/state.json
+git commit -m "chore: add doc-updater baseline"
+```
+
+Then in CI, just check:
+
 ```yaml
 # GitHub Actions example
 - name: Check doc staleness
   run: |
     pip install doc-updater
-    doc-updater check --baseline  # first run: set baseline
-    doc-updater check             # subsequent: detect staleness (exits 1 if stale)
+    doc-updater check  # exits 1 if docs are stale vs. committed baseline
 ```
+
+> **Note:** Remove `.doc-updater/` from `.gitignore` if you want to share the
+> baseline across the team. Only `state.json` is needed — `index.json` and
+> `mappings.json` are regenerated automatically by `check`.
 
 The `--json` flag produces machine-readable output:
 
