@@ -185,6 +185,7 @@ force-add `state.json` (the only file CI needs):
 # One-time setup (run locally)
 doc-updater init
 doc-updater check --baseline
+git add .gitignore
 git add -f .doc-updater/state.json
 git commit -m "chore: add doc-updater baseline"
 ```
