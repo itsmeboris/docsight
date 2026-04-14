@@ -451,6 +451,77 @@ class TestCliShow:
         )
         assert result.exit_code != 0
 
+
+# ---------------------------------------------------------------------------
+
+
+class TestCliCoverage:
+    """Tests for the coverage command."""
+
+    def test_coverage_shows_stats(self, tmp_repo):
+        """coverage reports documented and undocumented elements."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "coverage"])
+        assert result.exit_code == 0, result.output
+        assert "coverage" in result.output.lower() or "documented" in result.output.lower()
+
+    def test_coverage_json_output(self, tmp_repo):
+        """coverage --json returns valid JSON with coverage stats."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "coverage", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert "total" in data
+        assert "documented" in data
+        assert "undocumented" in data
+        assert "coverage_pct" in data
+        assert data["documented"] > 0
+
+    def test_coverage_detects_undocumented(self, tmp_path):
+        """coverage finds elements that no doc references."""
+        src = tmp_path / "mymod.py"
+        src.write_text("def undocumented_func():\n    pass\n", encoding="utf-8")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "coverage", "--json"])
+        data = json.loads(result.output)
+        assert data["undocumented"] >= 1
+        assert "undocumented_func" in str(data["undocumented_elements"])
+
+    def test_coverage_excludes_private_by_default(self, tmp_path):
+        """coverage hides _private elements unless --include-private."""
+        src = tmp_path / "mymod.py"
+        src.write_text("def public_func():\n    pass\ndef _priv():\n    pass\n")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "coverage", "--json"])
+        data = json.loads(result.output)
+        assert "_priv" not in str(data["undocumented_elements"])
+
+    def test_coverage_include_private(self, tmp_path):
+        """coverage --include-private shows _private elements."""
+        src = tmp_path / "mymod.py"
+        src.write_text("def public_func():\n    pass\ndef _priv():\n    pass\n")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--json", "--include-private"]
+        )
+        data = json.loads(result.output)
+        assert "_priv" in str(data["undocumented_elements"])
+
     def test_show_fails_without_report(self, tmp_repo):
         """show should fail if no last_report."""
         runner = CliRunner()

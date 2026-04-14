@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import click
+import rich.console
 
 from doc_updater.analyzer.graph import CodeGraph
 from doc_updater.analyzer.python_analyzer import PythonAnalyzer
@@ -640,3 +641,89 @@ def show(ctx: click.Context, doc: str) -> None:
         refs = mappings[doc_key].get("mapped", [])
 
     print_doc_tree(doc_key, doc_data, refs)
+
+
+@cli.command()
+@click.option("--json", "output_json", is_flag=True, default=False, help="Output JSON.")
+@click.option(
+    "--include-private",
+    is_flag=True,
+    default=False,
+    help="Include private/underscore-prefixed elements.",
+)
+@click.pass_context
+def coverage(ctx: click.Context, output_json: bool, include_private: bool) -> None:
+    """Show which code elements are documented and which are not."""
+    from rich.table import Table
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store = JsonStore(store_dir)
+
+    # Auto-run index + scan if needed
+    elements = store.load_index()
+    if not elements:
+        _run_index(repo, store)
+        _run_scan(repo, store)
+        elements = store.load_index()
+
+    mappings = store.load_mappings()
+
+    # Collect all documented element IDs
+    documented_eids: set[str] = set()
+    for doc_data in mappings.values():
+        for ref in doc_data.get("mapped", []):
+            documented_eids.add(ref.get("element_id", ""))
+
+    # Categorise elements
+    documented: list[str] = []
+    undocumented: list[str] = []
+
+    for eid, elem in elements.items():
+        # Skip module-level elements
+        if eid.endswith("::__module__"):
+            continue
+        # Skip private unless requested
+        name = elem.name if hasattr(elem, "name") else eid.split("::")[-1]
+        if not include_private and name.startswith("_"):
+            continue
+
+        if eid in documented_eids:
+            documented.append(eid)
+        else:
+            undocumented.append(eid)
+
+    total = len(documented) + len(undocumented)
+    pct = (len(documented) / total * 100) if total else 100.0
+
+    if output_json:
+        import json as _json
+        click.echo(_json.dumps({
+            "total": total,
+            "documented": len(documented),
+            "undocumented": len(undocumented),
+            "coverage_pct": round(pct, 1),
+            "undocumented_elements": sorted(undocumented),
+        }, indent=2))
+        return
+
+    console = rich.console.Console()
+    console.print(
+        f"\nDoc coverage: [bold]{len(documented)}/{total}[/bold] "
+        f"elements documented ([bold]{pct:.0f}%[/bold])\n"
+    )
+
+    if undocumented:
+        table = Table(title="Undocumented Elements", show_lines=False)
+        table.add_column("Element", style="yellow")
+        table.add_column("Kind", style="dim")
+        table.add_column("File", style="dim")
+        for eid in sorted(undocumented):
+            elem = elements[eid]
+            name = elem.name if hasattr(elem, "name") else eid
+            kind = elem.kind.value if hasattr(elem, "kind") else "?"
+            file_path = elem.file if hasattr(elem, "file") else "?"
+            table.add_row(eid, kind, file_path)
+        console.print(table)
+    else:
+        console.print("[green]All public elements are documented![/green]")
