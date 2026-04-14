@@ -15,3 +15,5 @@ graph.json
 # IDE / tool state
 .cursor/
 .claude/
+.playwright-mcp/
+*.png
