@@ -176,13 +176,16 @@ doc-updater check --baseline
 
 ### CI integration
 
-The baseline must be created **locally** and committed — CI only checks against it:
+The baseline must be created **locally** and committed — CI only checks against it.
+
+`init` adds `.doc-updater/` to `.gitignore` by default, so you need to
+force-add `state.json` (the only file CI needs):
 
 ```bash
-# One-time setup (run locally, commit .doc-updater/state.json)
+# One-time setup (run locally)
 doc-updater init
 doc-updater check --baseline
-git add .doc-updater/state.json
+git add -f .doc-updater/state.json
 git commit -m "chore: add doc-updater baseline"
 ```
 
@@ -196,9 +199,14 @@ Then in CI, just check:
     doc-updater check  # exits 1 if docs are stale vs. committed baseline
 ```
 
-> **Note:** Remove `.doc-updater/` from `.gitignore` if you want to share the
-> baseline across the team. Only `state.json` is needed — `index.json` and
-> `mappings.json` are regenerated automatically by `check`.
+`check` auto-regenerates `index.json` and `mappings.json` — only `state.json`
+needs to be in the repo. After updating stale docs, re-baseline and commit:
+
+```bash
+doc-updater check --baseline
+git add -f .doc-updater/state.json
+git commit -m "chore: update doc-updater baseline"
+```
 
 The `--json` flag produces machine-readable output:
 
