@@ -80,6 +80,11 @@ def init(ctx: click.Context, no_baseline: bool) -> None:
     _run_scan(repo, store, exclude=exclude)
     ctx.invoke(check, baseline=True)
 
+    # Install pre-push hook if this is a git repo
+    hooks_dir = repo / ".git" / "hooks"
+    if hooks_dir.exists():
+        ctx.invoke(install)
+
 
 @cli.command()
 @click.option(
