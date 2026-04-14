@@ -27,7 +27,15 @@ from docsight.store.json_store import JsonStore
 def cli(ctx: click.Context, repo: str | None) -> None:
     """docsight: detect stale documentation."""
     ctx.ensure_object(dict)
-    ctx.obj["repo"] = Path(repo) if repo is not None else Path(os.getcwd())
+    repo_path = Path(repo) if repo is not None else Path(os.getcwd())
+    ctx.obj["repo"] = repo_path
+
+    # Migrate legacy .doc-updater/ → .docsight/
+    old_dir = repo_path / ".doc-updater"
+    new_dir = repo_path / ".docsight"
+    if old_dir.exists() and not new_dir.exists():
+        old_dir.rename(new_dir)
+        click.echo(f"Migrated {old_dir} → {new_dir}")
 
 
 @cli.command()

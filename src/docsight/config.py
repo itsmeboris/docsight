@@ -29,6 +29,9 @@ def load_config(repo: Path) -> dict:
     if not isinstance(tool, dict):
         return {}
     section = tool.get("docsight")
+    # Fall back to legacy [tool.doc-updater] for upgrade compatibility
+    if not isinstance(section, dict):
+        section = tool.get("doc-updater")
     if not isinstance(section, dict):
         return {}
     return section
