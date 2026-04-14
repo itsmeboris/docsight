@@ -42,8 +42,16 @@ def generate_html_report(
             eid = ref.get("element_id", "")
             raw_documented.add(eid)
             eid_to_docs.setdefault(eid, []).append(doc_path)
-    # Expand file-path references to cover the file's elements
+    # Expand file-path references to cover the file's elements.
+    # Also propagate doc paths so badges render correctly.
     documented_eids = expand_file_path_docs(raw_documented, elements)
+    for eid in documented_eids - raw_documented:
+        # This element is covered via its file's MODULE reference —
+        # inherit the docs from the MODULE element.
+        file_path = eid.split("::")[0] if "::" in eid else ""
+        module_eid = f"{file_path}::__module__"
+        if module_eid in eid_to_docs:
+            eid_to_docs.setdefault(eid, []).extend(eid_to_docs[module_eid])
 
     # Group elements by file
     files: dict[str, list[dict]] = {}
