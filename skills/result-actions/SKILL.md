@@ -1,56 +1,40 @@
 ---
 name: result-actions
-description: How to interpret docsight results and take action — fix stale docs, suggest updates, prioritize gaps
+description: How to interpret docsight data and translate it into semantic, actionable insight
 user-invocable: false
 ---
 
-# Acting on Docsight Results
+# Translating Docsight Data to Semantic Insight
 
-## Interpreting staleness
+Docsight is a data layer. You are the intelligence layer. Always read
+the actual files before presenting results.
 
-**change_type = "signature"** (high confidence)
-The function/class API changed — parameters added/removed/renamed, return type changed.
-→ The doc almost certainly needs updating. Read the element's current signature and update the doc to match.
+## Translating change types
 
-**change_type = "body"** (medium confidence)
-The function behavior changed but the API is the same.
-→ Check if the doc describes behavior details. If it only shows usage examples, it may still be correct.
+**signature changed** → Read the old doc and new code. Show: "The doc says X but the code now does Y."
 
-**change_type = "transitive"** (lower confidence, hops > 0)
-A dependency of the documented element changed.
-→ Only flag if the doc mentions the dependency's behavior. Many transitive changes don't affect the doc.
+**body changed** → Read the doc. Does it describe behavior details? If it only shows a usage example, the example might still work. Only flag if the doc describes the behavior that changed.
 
-**change_type = "reference_lost" or "deleted"**
-The documented element was renamed or removed.
-→ This always needs a doc update. Find what replaced it and update the reference.
+**transitive** → This is the trickiest. Read the doc section about the affected element. Ask: "Does this doc describe HOW the element works internally (in which case a dependency change matters) or just HOW TO USE it (in which case it probably doesn't)?"
 
-## Fixing a stale doc
+**deleted/reference_lost** → Always flag. The doc references something that doesn't exist. Read the doc and identify every mention.
 
-When you need to update a doc for a stale element:
+## Assessing whether a gap matters
 
-1. Read the current doc file
-2. Read the changed code element: `docsight show <doc>` or read the source file directly
-3. Find the specific section in the doc that references the changed element
-4. Update that section to match the current code
-5. Do NOT rewrite unrelated sections
-6. After fixing, offer to re-baseline: `docsight check --baseline`
+Not all undocumented code needs docs. Ask:
 
-## Prioritizing coverage gaps
+1. **Is it user-facing?** Entry points, CLI commands, API endpoints → needs docs
+2. **Is it a system boundary?** Connects major components → architecture doc should mention it
+3. **Do other devs need to understand it?** Complex logic, non-obvious design → needs explanation
+4. **Is it a simple utility?** Single-purpose, well-named → code is the doc
 
-When `coverage --gaps` returns multiple files:
+## Presenting findings
 
-1. Files with highest `depended_on_by` are most critical — they're used by many other files
-2. Files with high `public_api` count have more surface area to document
-3. Recommend documenting the highest-impact file first
-4. Suggest creating a new doc file in `docs/` with the file's public API documented
+Bad: "src/docsight/cli.py::check has change_type=signature, confidence=0.90, hops=0"
 
-## Confidence thresholds
+Good: "The auth guide shows `validate_token(token, strict=True)` but the `strict` parameter was renamed to `mode` and now takes a string instead of a boolean. Line 42 of the guide needs updating."
 
-- >= 0.70: STALE — doc definitely needs review
-- 0.40–0.69: POSSIBLY_STALE — doc might need review, mention it but don't alarm
-- < 0.40: Low confidence — don't mention unless the user asks for details
+## After fixes
 
-## Exit codes
-
-- `docsight check` exits 0 = all healthy, exits 1 = stale docs found
-- Use exit code for CI gating, not for conversational output
+Always offer to re-baseline: `docsight check --baseline`
+Explain: "This marks all current docs as verified against the code."

@@ -1,42 +1,44 @@
 ---
-description: Check if documentation is stale and suggest fixes
-allowed-tools: Bash(docsight:*), Read, Grep, Glob
+description: Check if documentation is stale and explain what drifted
+allowed-tools: Bash(docsight:*), Read, Grep, Glob, Edit
 ---
 
-Run docsight check and help the user fix any stale docs.
+Detect stale documentation, explain what drifted, and offer to fix it.
 
-## Step 1: Run the check
+## Step 1: Get the data
 
 ```bash
 docsight check --json
 ```
 
-Parse using the `output-schemas` skill.
+If all healthy, say so briefly and stop.
 
-## Step 2: Present findings
+## Step 2: For each stale doc — do semantic analysis
 
-- If all healthy: "All N docs are up to date." Stop here.
-- If stale/possibly_stale: summarize by severity, then detail each.
+For each stale doc, DO NOT just list element IDs. Instead:
 
-For each stale doc, explain:
-- **What changed**: element name, change type (signature/body/transitive/deleted)
-- **Confidence**: high (>= 0.70) or medium (< 0.70)
-- **Impact**: direct (hops=0) or transitive (hops > 0, name the chain)
+1. **Read the stale doc** using the Read tool
+2. **Read the changed source code** — the element that triggered staleness
+3. **Explain the drift in plain language:**
+   - "The authentication guide shows `validate_token(token, strict=True)` but the `strict` parameter was renamed to `mode` and now accepts a string"
+   - "The cache guide describes `cache_lookup(key)` but the function now takes an optional `ttl` parameter"
+4. **Quote the specific lines** in the doc that are wrong
+5. **Show what the code looks like now**
 
-## Step 3: Offer to fix (only if stale found)
+## Step 3: Offer to fix
 
-For each stale doc:
-1. Read the doc file
-2. Read the changed source code element
-3. Show the user the specific section that needs updating and the current code
-4. Suggest a concrete edit
+For each stale section, draft the corrected text and ask:
+"Want me to update this section?"
 
-Ask: "Want me to apply these fixes?" — do NOT auto-edit without confirmation.
+Do NOT auto-edit. Wait for confirmation.
 
 ## Step 4: After fixes
 
-If the user approved fixes:
 ```bash
 docsight check --baseline
 ```
-Confirm: "Baseline updated. Docs are now verified against current code."
+
+## Rules
+- Never just dump JSON or element IDs at the user
+- Always read the actual files and explain semantically
+- Focus on WHAT changed and WHY the doc is wrong, not on confidence scores
