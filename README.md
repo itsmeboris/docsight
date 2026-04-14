@@ -49,11 +49,8 @@ pip install -e .
 ```bash
 cd your-python-project
 
-# Initialize (creates .docsight/, indexes code, sets baseline)
+# One command: creates .docsight/, indexes code, sets baseline, installs pre-push hook
 docsight init
-
-# Optionally install pre-push git hook
-docsight hooks install
 
 # ... make code changes ...
 
@@ -62,6 +59,9 @@ docsight check
 
 # See what changed and which docs need updating
 docsight diff
+
+# See blast radius before changing something
+docsight impact src/auth.py
 ```
 
 Example output:
@@ -198,7 +198,6 @@ force-add `state.json` (the only file CI needs):
 ```bash
 # One-time setup (run locally)
 docsight init
-docsight check --baseline
 git add .gitignore
 git add -f .docsight/state.json
 git commit -m "chore: add docsight baseline"
@@ -375,13 +374,13 @@ pylint tests/       # Target: clean
 
 ```
 src/docsight/
-├── cli.py                  # Click CLI (init, index, scan, check, status, show, graph, coverage, report, clean)
+├── cli.py                  # Click CLI (init, check, diff, impact, coverage, graph, report, hooks, ...)
 ├── config.py               # Load [tool.docsight] from pyproject.toml, exclude patterns
 ├── report.py               # Hierarchical HTML report generator
 ├── analyzer/
 │   ├── base.py             # Data models (CodeElement, Parameter, GraphEdge, etc.)
 │   ├── python_analyzer.py  # Python AST visitor with three-tier hashing
-│   └── graph.py            # networkx dependency graph + HTML export
+│   └── graph.py            # networkx dependency graph + semantic zoom HTML export
 ├── docs/
 │   ├── scanner.py          # Markdown parser, extracts code references
 │   └── mapper.py           # Resolves references to code element IDs
