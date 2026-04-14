@@ -12,7 +12,12 @@ import rich.console
 
 from docsight.analyzer.graph import CodeGraph
 from docsight.analyzer.python_analyzer import PythonAnalyzer
-from docsight.config import get_exclude_patterns, load_config, should_exclude
+from docsight.config import (
+    expand_file_path_docs,
+    get_exclude_patterns,
+    load_config,
+    should_exclude,
+)
 from docsight.store.json_store import JsonStore
 
 
@@ -881,19 +886,9 @@ def coverage(ctx: click.Context, output_json: bool, include_private: bool,
         for ref in doc_data.get("mapped", []):
             documented_eids.add(ref.get("element_id", ""))
 
-    # File-path coverage: if a file's MODULE element is documented (via file
-    # path reference like `core/triggers/polling.py`), treat the file's public
-    # API elements as documented too — the doc covers the file.
-    documented_files: set[str] = set()
-    for eid in documented_eids:
-        if eid.endswith("::__module__"):
-            documented_files.add(eid[: -len("::__module__")])
-    for eid, elem in elements.items():
-        if eid.endswith("::__module__"):
-            continue
-        file_path = elem.file if hasattr(elem, "file") else ""
-        if file_path in documented_files:
-            documented_eids.add(eid)
+    # File-path coverage: if a doc references a file path, expand to cover
+    # all elements in that file (shared logic with report/graph).
+    documented_eids = expand_file_path_docs(documented_eids, elements)
 
     if gaps:
         _coverage_gaps(store, elements, documented_eids, output_json)

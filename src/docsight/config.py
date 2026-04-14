@@ -67,6 +67,34 @@ def get_exclude_patterns(config: dict) -> list[str]:
     return result
 
 
+def expand_file_path_docs(
+    documented_eids: set[str],
+    elements: dict,
+) -> set[str]:
+    """Expand file-path documentation to cover the file's elements.
+
+    When a doc references ``core/triggers/polling.py`` (mapped to the
+    MODULE element), this adds ALL elements in that file to the
+    documented set so coverage/report/graph agree.
+
+    Returns a new set (the original is not mutated).
+    """
+    expanded = set(documented_eids)
+    documented_files: set[str] = set()
+    for eid in documented_eids:
+        if eid.endswith("::__module__"):
+            documented_files.add(eid[: -len("::__module__")])
+    if not documented_files:
+        return expanded
+    for eid, elem in elements.items():
+        if eid.endswith("::__module__"):
+            continue
+        file_path = elem.file if hasattr(elem, "file") else ""
+        if file_path in documented_files:
+            expanded.add(eid)
+    return expanded
+
+
 def should_exclude(rel_path: str, patterns: list[str]) -> bool:
     """Return *True* when *rel_path* matches any exclude pattern.
 

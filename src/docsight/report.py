@@ -6,6 +6,8 @@ import html as _html
 from pathlib import Path
 from typing import Any
 
+from docsight.config import expand_file_path_docs
+
 
 def generate_html_report(
     elements: dict[str, Any],
@@ -32,14 +34,16 @@ def generate_html_report(
                 stale_eids.add(eid)
 
     # Build documented element set from mappings
-    documented_eids: set[str] = set()
+    raw_documented: set[str] = set()
     # Also build reverse map: element_id -> list of doc paths
     eid_to_docs: dict[str, list[str]] = {}
     for doc_path, doc_data in mappings.items():
         for ref in doc_data.get("mapped", []):
             eid = ref.get("element_id", "")
-            documented_eids.add(eid)
+            raw_documented.add(eid)
             eid_to_docs.setdefault(eid, []).append(doc_path)
+    # Expand file-path references to cover the file's elements
+    documented_eids = expand_file_path_docs(raw_documented, elements)
 
     # Group elements by file
     files: dict[str, list[dict]] = {}

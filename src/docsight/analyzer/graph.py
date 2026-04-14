@@ -11,6 +11,7 @@ from typing import Any
 import networkx as nx
 
 from docsight.analyzer.base import EdgeKind, GraphEdge
+from docsight.config import expand_file_path_docs
 
 # Node shape/colour constants for HTML export
 _KIND_SHAPE: dict[str, str] = {
@@ -442,11 +443,12 @@ def export_zoom_html(
             elif doc_status in ("possibly_stale", "POSSIBLY_STALE"):
                 possibly_stale_eids.add(eid)
 
-    # Documented element set
-    documented_eids: set[str] = set()
+    # Documented element set (with file-path expansion)
+    raw_documented: set[str] = set()
     for doc_data in mappings.values():
         for ref in doc_data.get("mapped", []):
-            documented_eids.add(ref.get("element_id", ""))
+            raw_documented.add(ref.get("element_id", ""))
+    documented_eids = expand_file_path_docs(raw_documented, elements)
 
     # Group elements by file (track all files, including module-only ones)
     all_files: set[str] = set()
