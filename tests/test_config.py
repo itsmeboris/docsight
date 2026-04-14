@@ -56,28 +56,42 @@ class TestLoadConfig:
 class TestGetExcludePatterns:
     """Tests for get_exclude_patterns."""
 
-    def test_returns_list_from_config(self):
-        """Extracts the exclude list."""
-        assert get_exclude_patterns({"exclude": ["a/", "b/"]}) == ["a/", "b/"]
+    def test_always_includes_builtin_excludes(self):
+        """Built-in excludes are always present even with no user config."""
+        result = get_exclude_patterns({})
+        assert ".claude/worktrees/" in result
+        assert "node_modules/" in result
+        assert "__pycache__/" in result
 
-    def test_returns_empty_list_when_absent(self):
-        """Returns [] when exclude is not set."""
-        assert not get_exclude_patterns({})
+    def test_merges_user_config_with_builtins(self):
+        """User exclude patterns are appended after built-ins."""
+        result = get_exclude_patterns({"exclude": ["vendor/", "generated/"]})
+        assert "vendor/" in result
+        assert "generated/" in result
+        assert ".claude/worktrees/" in result  # built-in still present
+
+    def test_deduplicates(self):
+        """User patterns that overlap built-ins are not duplicated."""
+        result = get_exclude_patterns({"exclude": ["node_modules/", "extra/"]})
+        assert result.count("node_modules/") == 1
 
     def test_wraps_string_in_list(self):
         """Wraps a single string value into a list."""
-        assert get_exclude_patterns({"exclude": "tests/"}) == ["tests/"]
+        result = get_exclude_patterns({"exclude": "tests/"})
+        assert "tests/" in result
 
     def test_ignores_non_list_non_string_value(self):
-        """Returns [] when exclude is an int, bool, or dict."""
-        assert not get_exclude_patterns({"exclude": 42})
-        assert not get_exclude_patterns({"exclude": True})
-        assert not get_exclude_patterns({"exclude": {"bad": "value"}})
+        """Returns only built-ins when exclude is an int, bool, or dict."""
+        for bad in (42, True, {"bad": "value"}):
+            result = get_exclude_patterns({"exclude": bad})
+            assert ".claude/worktrees/" in result
+            assert "vendor/" not in result  # no user patterns leaked in
 
     def test_drops_non_string_items_from_list(self):
         """Silently drops non-string entries from a list."""
-        result = get_exclude_patterns({"exclude": ["tests/", 42, None, ".claude/"]})
-        assert result == ["tests/", ".claude/"]
+        result = get_exclude_patterns({"exclude": ["tests/", 42, None, "vendor/"]})
+        assert "tests/" in result
+        assert "vendor/" in result
 
 
 class TestShouldExclude:

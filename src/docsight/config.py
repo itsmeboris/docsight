@@ -34,19 +34,37 @@ def load_config(repo: Path) -> dict:
     return section
 
 
-def get_exclude_patterns(config: dict) -> list[str]:
-    """Return the ``exclude`` list from config, normalised.
+# Directories that are always excluded (contain repo copies or generated code)
+_BUILTIN_EXCLUDES = [
+    ".claude/worktrees/",
+    ".worktrees/",
+    "node_modules/",
+    ".git/",
+    "__pycache__/",
+]
 
-    Silently drops non-string entries so a mistyped value like
-    ``exclude = 42`` or ``exclude = [{bad = true}]`` never crashes
-    the CLI.
+
+def get_exclude_patterns(config: dict) -> list[str]:
+    """Return the ``exclude`` list from config, merged with built-in excludes.
+
+    Built-in excludes (``.claude/worktrees/``, ``node_modules/``, etc.)
+    are always applied.  Silently drops non-string entries so a mistyped
+    value never crashes the CLI.
     """
     raw = config.get("exclude", [])
     if isinstance(raw, str):
-        return [raw]
-    if not isinstance(raw, list):
-        return []
-    return [item for item in raw if isinstance(item, str)]
+        raw = [raw]
+    elif not isinstance(raw, list):
+        raw = []
+    user = [item for item in raw if isinstance(item, str)]
+    # Merge: built-in + user, deduplicated
+    seen: set[str] = set()
+    result: list[str] = []
+    for pat in _BUILTIN_EXCLUDES + user:
+        if pat not in seen:
+            seen.add(pat)
+            result.append(pat)
+    return result
 
 
 def should_exclude(rel_path: str, patterns: list[str]) -> bool:

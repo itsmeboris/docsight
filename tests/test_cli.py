@@ -896,6 +896,48 @@ class TestCliSmartCoverage:
         assert result.exit_code == 0
         assert "public API" in result.output
 
+    def test_file_path_reference_covers_elements(self, tmp_path):
+        """A file-path reference in docs counts as coverage for that file's API."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "mylib.py").write_text("class Widget:\n    pass\ndef build(): pass\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        # Reference the FILE PATH (with directory), not the class/function names
+        (docs / "guide.md").write_text("# Guide\nSee `src/mylib.py` for details.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "coverage", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # Widget and build should be counted as documented via file-path ref
+        assert data["documented"] == 2
+        assert data["undocumented"] == 0
+
+    def test_file_path_ref_excludes_from_gaps(self, tmp_path):
+        """Files referenced by path in docs should not appear in --gaps."""
+        src = tmp_path / "core"
+        src.mkdir()
+        (src / "engine.py").write_text("class Engine:\n    pass\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "arch.md").write_text("# Arch\nMain module: `core/engine.py`.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--gaps", "--json"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        gap_files = [g["file"] for g in data["gap_files"]]
+        assert not any("engine.py" in f for f in gap_files)
+
 
 # ---------------------------------------------------------------------------
 # impact command
