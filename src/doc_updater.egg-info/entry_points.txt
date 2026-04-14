@@ -1,2 +1,0 @@
-[console_scripts]
-doc-updater = doc_updater.cli:cli

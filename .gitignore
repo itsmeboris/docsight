@@ -1,0 +1,15 @@
+# Generated artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+.coverage
+.pytest_cache/
+dist/
+build/
+
+# doc-updater data
+.doc-updater/
+
+# IDE / tool state
+.cursor/
+.claude/
