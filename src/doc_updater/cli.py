@@ -40,7 +40,7 @@ def init(ctx: click.Context) -> None:
 
     # Add entries to .gitignore (idempotent — only add if not already present).
     gitignore = repo / ".gitignore"
-    entries = [".doc-updater/", "graph.html", "graph.json"]
+    entries = [".doc-updater/", "graph.html", "graph.json", "report.html"]
 
     if gitignore.exists():
         existing = gitignore.read_text(encoding="utf-8")
@@ -80,7 +80,7 @@ def clean(ctx: click.Context, keep_gitignore: bool) -> None:
         gitignore = repo / ".gitignore"
         if gitignore.exists():
             lines = gitignore.read_text(encoding="utf-8").splitlines(keepends=True)
-            remove = {".doc-updater/", "graph.html", "graph.json"}
+            remove = {".doc-updater/", "graph.html", "graph.json", "report.html"}
             lines = [ln for ln in lines if ln.strip() not in remove]
             gitignore.write_text("".join(lines), encoding="utf-8")
             click.echo("Removed .doc-updater/ entry from .gitignore")
@@ -474,13 +474,13 @@ def check(
         graph=dep_graph,
         max_hops=effective_max_hops,
     )
-    report = detector.check_all()
+    check_report = detector.check_all()
 
     # Serialize report for storage (statuses stored as string values)
     from doc_updater.staleness.detector import StalenessIssue
 
     serializable_report: dict[str, dict] = {}
-    for doc_path, doc_data in report.items():
+    for doc_path, doc_data in check_report.items():
         doc_status = doc_data.get("status")
         status_str = (
             doc_status.value if isinstance(doc_status, DocStatus) else str(doc_status)
@@ -506,12 +506,12 @@ def check(
     store.save_state(state)
 
     if output_json:
-        click.echo(to_json(report))
+        click.echo(to_json(check_report))
     else:
-        print_summary(report)
-        print_details(report)
+        print_summary(check_report)
+        print_details(check_report)
 
-    if has_stale(report):
+    if has_stale(check_report):
         sys.exit(1)
 
 
@@ -598,6 +598,33 @@ def graph(ctx: click.Context, export_format: str, output: str | None) -> None:
         graph_obj.export_html(out_path, stale_elements=stale_elements)
 
     click.echo(f"Graph exported to {out_path}")
+
+
+@cli.command()
+@click.option("-o", "--output", type=click.Path(), default=None,
+              help="Output file path (default: <repo>/report.html).")
+@click.pass_context
+def report(ctx: click.Context, output: str | None) -> None:
+    """Generate an interactive HTML report with file-level drill-down."""
+    from doc_updater.report import generate_html_report
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".doc-updater"
+    store = JsonStore(store_dir)
+
+    # Auto-run index + scan if needed
+    elements = store.load_index()
+    if not elements:
+        _run_index(repo, store)
+        _run_scan(repo, store)
+        elements = store.load_index()
+
+    mappings = store.load_mappings()
+    state = store.load_state()
+
+    out_path = Path(output) if output else repo / "report.html"
+    generate_html_report(elements, mappings, state, out_path)
+    click.echo(f"Report generated: {out_path}")
 
 
 @cli.command()
