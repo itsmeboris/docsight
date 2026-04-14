@@ -7,7 +7,7 @@
 
 ## Build & Test
 - Install: `pip install -e ".[dev]"`
-- Test: `pytest -v` (241 tests, target 96%+ coverage)
+- Test: `pytest -v` (246 tests, target 95%+ coverage)
 - Lint: `pylint src/doc_updater/` and `pylint tests/` (target 10.00/10)
 - All pylint config is in `pyproject.toml` under `[tool.pylint.*]`
 - All test classes and methods must have docstrings (pylint enforces this)
@@ -31,3 +31,7 @@
 - `analyze_file()` accepts optional `repo_root` param for relative path generation
 - `clean` command: gitignore cleanup runs BEFORE rmtree to avoid stale state on partial failure
 - CLI commands that add `doc-updater init` must also consider `doc-updater clean` for symmetry
+- `init` adds `.doc-updater/`, `graph.html`, `graph.json`, `report.html` to `.gitignore`
+- Prefer lightweight hierarchical HTML (`report` command) over heavy vis.js graph for visualization
+- vis.js graph with 400+ nodes is unusable — user wants file-level view with drill-down, not flat node dump
+- Generated HTML files (graph.html, report.html) go to repo root and must be gitignored
