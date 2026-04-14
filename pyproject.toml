@@ -39,7 +39,7 @@ line-length = 88
 target-version = ["py312"]
 
 [tool.docsight]
-exclude = ["tests/", ".claude/", ".cursor/"]
+exclude = ["tests/", ".claude/", ".cursor/", "docs/superpowers/"]
 
 [tool.pylint.messages_control]
 disable = [

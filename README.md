@@ -151,7 +151,7 @@ If a documented function is renamed or deleted, it's flagged as `reference_lost`
 | `docsight diff` | Show which docs need updating based on code changes |
 | `docsight graph` | Export semantic-zoom dependency graph (file → class → method) |
 | `docsight coverage` | Show doc coverage (public API only by default) |
-| `docsight report` | Generate interactive HTML report |
+| `docsight report` | Generate interactive HTML report with file drill-down |
 | `docsight clean` | Remove all docsight data from the repo |
 
 ### Key flags
@@ -269,6 +269,13 @@ Patterns support:
 - **Glob/fnmatch**: `"*.generated.py"` excludes generated files
 - **Bare names**: `"vendor"` matches `vendor/` as a directory prefix
 
+These directories are **always excluded** automatically (no config needed):
+`.claude/worktrees/`, `.worktrees/`, `node_modules/`, `.git/`, `__pycache__/`
+
+### File-path documentation
+
+When a doc references a file path in backticks (e.g. `` `core/triggers/polling.py` ``), docsight treats all public elements in that file as documented. This means architecture docs that describe modules by path automatically provide coverage for the classes and functions inside them.
+
 ### Data files
 
 docsight stores all data in `.docsight/` (auto-added to `.gitignore`):
@@ -302,21 +309,28 @@ Use `--all-elements` to count every element (classes, functions, and methods).
 
 ```bash
 docsight graph
-# Opens graph.html with interactive vis.js visualization
 ```
 
-Features:
-- **Dark theme** with color-coded nodes (classes=blue diamonds, methods=light blue, functions=green)
-- **Stale nodes** highlighted in red
-- **Search** to filter nodes by name
-- **Hover tooltips** with element details
+The default graph uses **semantic zoom** — starts at file level, double-click to expand into classes/functions, double-click a class to see methods. Double-click the folder header to collapse back.
+
+- **Red** nodes = stale, **amber** = possibly stale, **blue** = healthy
+- **Search** filters nodes by name across all levels
+- **Collapse All** button resets to file-level view
 - **Edge types**: solid = calls, dashed = inherits
 
-Export as JSON for programmatic use:
+Use `--flat` for a traditional force-directed layout, `--export json` for programmatic use.
+
+## HTML Report
 
 ```bash
-docsight graph --export json -o graph.json
+docsight report
 ```
+
+Generates a self-contained HTML report at `.docsight/report.html` with:
+- **Documentation status** per doc file (healthy/stale badges)
+- **Code elements by file** — collapsible sections with classes, methods, functions
+- **Stale elements** highlighted in red, **undocumented** in yellow
+- **Coverage stats** (public API only) in the header
 
 ---
 
@@ -325,7 +339,9 @@ docsight graph --export json -o graph.json
 docsight ships as a Claude Code plugin. Install it to get slash commands in any conversation:
 
 ```bash
-claude plugin add /path/to/docsight
+claude plugin marketplace add itsmeboris/docsight
+claude plugin install docsight@docsight
+/reload-plugins
 ```
 
 ### Available commands
@@ -333,10 +349,11 @@ claude plugin add /path/to/docsight
 | Command | What it does |
 |---------|-------------|
 | `/docsight:init` | Initialize and baseline the repo |
-| `/docsight:check` | Check staleness, suggest fixes for stale docs |
-| `/docsight:impact <target>` | Show blast radius of changing an element or file |
-| `/docsight:diff [--base REF]` | Show which docs need updating for your changes |
-| `/docsight:coverage [--gaps]` | Coverage stats or find where to write docs next |
+| `/docsight:check` | Check staleness, read the docs and code, suggest specific fixes |
+| `/docsight:audit` | Full semantic analysis — what docs cover, what's missing, what matters |
+| `/docsight:impact <target>` | Understand blast radius before changing code |
+| `/docsight:diff [--base REF]` | Explain which docs need updating for your changes |
+| `/docsight:coverage [--gaps]` | Find meaningful documentation gaps by importance |
 | `/docsight:graph` | Generate and open the semantic-zoom dependency graph |
 | `/docsight:report` | Generate and open the HTML report |
 
