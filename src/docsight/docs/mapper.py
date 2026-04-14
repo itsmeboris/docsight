@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from doc_updater.analyzer.base import CodeElement, ElementKind
-from doc_updater.docs.scanner import RawReference
+from docsight.analyzer.base import CodeElement, ElementKind
+from docsight.docs.scanner import RawReference
 
 
 @dataclass

@@ -1,4 +1,4 @@
-# doc-updater Implementation Plan
+# docsight Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -44,7 +44,7 @@
 
 | # | Severity | Issue | Fix |
 |---|----------|-------|-----|
-| 19 | **Important** | `check` auto-runs `index` but doesn't handle parse errors | `check` auto-indexes with `skip_errors=True` by default (warn, don't fail); explicit `doc-updater index` remains strict |
+| 19 | **Important** | `check` auto-runs `index` but doesn't handle parse errors | `check` auto-indexes with `skip_errors=True` by default (warn, don't fail); explicit `docsight index` remains strict |
 | 20 | **Important** | `test_index_finds_elements` expects `TokenCache` but fixture now has `cache_lookup` | Fixed test assertion to match updated fixture |
 | 21 | **Important** | Comment-only e2e test contradicts MODULE file-path behavior | MODULE element uses `ast.dump()` for body_hash (structural, ignores comments); file_hash only stored on FileAnalysis for incremental indexing, not for staleness |
 | 22 | **Important** | Unresolved references are invisible to the user | `scan` persists unmapped refs; `show` displays them; `check` warns about unmapped count. Unmapped != stale (coverage gap, not staleness) |
@@ -62,9 +62,9 @@
 ## File Structure
 
 ```
-doc-updater/
+docsight/
 ├── pyproject.toml                          # Package config, entry point, deps
-├── src/doc_updater/
+├── src/docsight/
 │   ├── __init__.py                         # Version string
 │   ├── cli.py                              # Click CLI group + all commands
 │   ├── analyzer/
@@ -118,7 +118,7 @@ doc-updater/
 
 **Files:**
 - Create: `pyproject.toml`
-- Create: `src/doc_updater/__init__.py`
+- Create: `src/docsight/__init__.py`
 - Create: all `__init__.py` files for subpackages
 - Create: `tests/conftest.py`
 
@@ -130,7 +130,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "doc-updater"
+name = "docsight"
 version = "0.1.0"
 description = "Detect stale documentation by analyzing code-to-doc relationships"
 requires-python = ">=3.10"
@@ -144,7 +144,7 @@ dependencies = [
 dev = ["pytest>=7.0"]
 
 [project.scripts]
-doc-updater = "doc_updater.cli:cli"
+docsight = "docsight.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -155,9 +155,9 @@ testpaths = ["tests"]
 
 - [ ] **Step 2: Create package init files**
 
-`src/doc_updater/__init__.py`:
+`src/docsight/__init__.py`:
 ```python
-"""doc-updater: Detect stale documentation by analyzing code-to-doc relationships."""
+"""docsight: Detect stale documentation by analyzing code-to-doc relationships."""
 __version__ = "0.1.0"
 ```
 
@@ -263,7 +263,7 @@ git init && git add -A && git commit -m "feat: project scaffolding"
 ### Task 2: Data models (base.py)
 
 **Files:**
-- Create: `src/doc_updater/analyzer/base.py`
+- Create: `src/docsight/analyzer/base.py`
 - Create: `tests/test_models.py`
 
 Key design note: `CodeElement` has `raw_calls: list[str]` for unresolved AST calls.
@@ -273,7 +273,7 @@ There is NO `calls` field with resolved IDs — the graph is the sole source of 
 
 ```python
 """Tests for data models."""
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement, ElementKind, Parameter, ImportInfo,
     FileAnalysis, GraphEdge, EdgeKind,
 )
@@ -418,7 +418,7 @@ class CodeAnalyzer(ABC):
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/analyzer/base.py tests/test_models.py
+git add src/docsight/analyzer/base.py tests/test_models.py
 git commit -m "feat: data models - CodeElement with raw_calls, Parameter with kind, FileAnalysis with parse_errors"
 ```
 
@@ -427,7 +427,7 @@ git commit -m "feat: data models - CodeElement with raw_calls, Parameter with ki
 ### Task 3: JSON store
 
 **Files:**
-- Create: `src/doc_updater/store/json_store.py`
+- Create: `src/docsight/store/json_store.py`
 - Create: `tests/test_store.py`
 
 - [ ] **Step 1: Write tests**
@@ -435,14 +435,14 @@ git commit -m "feat: data models - CodeElement with raw_calls, Parameter with ki
 ```python
 """Tests for JSON store."""
 import json
-from doc_updater.store.json_store import JsonStore
-from doc_updater.analyzer.base import (
+from docsight.store.json_store import JsonStore
+from docsight.analyzer.base import (
     CodeElement, ElementKind, Parameter, FileAnalysis,
     ImportInfo, GraphEdge, EdgeKind,
 )
 
 def test_roundtrip_index(tmp_path):
-    store = JsonStore(tmp_path / ".doc-updater")
+    store = JsonStore(tmp_path / ".docsight")
     elements = {
         "src/auth.py::AuthManager": CodeElement(
             element_id="src/auth.py::AuthManager",
@@ -469,7 +469,7 @@ def test_roundtrip_index(tmp_path):
     assert len(loaded_edges) == 1
 
 def test_roundtrip_mappings(tmp_path):
-    store = JsonStore(tmp_path / ".doc-updater")
+    store = JsonStore(tmp_path / ".docsight")
     mappings = {
         "docs/auth.md": {
             "file_hash": "ddd",
@@ -490,7 +490,7 @@ def test_roundtrip_mappings(tmp_path):
     assert loaded["docs/auth.md"]["references"][0]["section"] == "Overview"
 
 def test_roundtrip_state(tmp_path):
-    store = JsonStore(tmp_path / ".doc-updater")
+    store = JsonStore(tmp_path / ".docsight")
     state = {
         "last_check_commit": "abc",
         "verified": {
@@ -510,12 +510,12 @@ def test_roundtrip_state(tmp_path):
     assert dep_hashes["src/cache.py::TokenCache.get"]["hops"] == 1
 
 def test_load_missing_returns_empty(tmp_path):
-    store = JsonStore(tmp_path / ".doc-updater")
+    store = JsonStore(tmp_path / ".docsight")
     e, f, ed, m = store.load_index()
     assert e == {} and f == {} and ed == []
 
 def test_creates_directory_on_save(tmp_path):
-    store_dir = tmp_path / ".doc-updater"
+    store_dir = tmp_path / ".docsight"
     assert not store_dir.exists()
     JsonStore(store_dir).save_mappings({})
     assert store_dir.exists()
@@ -534,7 +534,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement, ElementKind, Parameter, FileAnalysis,
     ImportInfo, GraphEdge, EdgeKind,
 )
@@ -646,7 +646,7 @@ def _deser_file(fp: str, d: dict) -> FileAnalysis:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/store/json_store.py tests/test_store.py
+git add src/docsight/store/json_store.py tests/test_store.py
 git commit -m "feat: JSON store with dependency_hashes support in state"
 ```
 
@@ -655,25 +655,25 @@ git commit -m "feat: JSON store with dependency_hashes support in state"
 ### Task 4: CLI skeleton with init command
 
 **Files:**
-- Create: `src/doc_updater/cli.py`
+- Create: `src/docsight/cli.py`
 - Create: `tests/test_cli.py`
 
 - [ ] **Step 1: Write tests**
 
 ```python
 from click.testing import CliRunner
-from doc_updater.cli import cli
+from docsight.cli import cli
 
 def test_init_creates_directory(tmp_path):
     runner = CliRunner()
     result = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
     assert result.exit_code == 0
-    assert (tmp_path / ".doc-updater").is_dir()
+    assert (tmp_path / ".docsight").is_dir()
 
 def test_init_adds_gitignore_entry(tmp_path):
     (tmp_path / ".gitignore").write_text("*.pyc\n")
     CliRunner().invoke(cli, ["--repo", str(tmp_path), "init"])
-    assert ".doc-updater/" in (tmp_path / ".gitignore").read_text()
+    assert ".docsight/" in (tmp_path / ".gitignore").read_text()
 
 def test_init_idempotent(tmp_path):
     runner = CliRunner()
@@ -687,11 +687,11 @@ def test_init_idempotent(tmp_path):
 - [ ] **Step 3: Implement cli.py skeleton**
 
 ```python
-"""CLI entry point for doc-updater."""
+"""CLI entry point for docsight."""
 from __future__ import annotations
 from pathlib import Path
 import click
-from doc_updater.store.json_store import JsonStore
+from docsight.store.json_store import JsonStore
 
 
 @click.group()
@@ -701,20 +701,20 @@ def cli(ctx: click.Context, repo: str) -> None:
     """Detect stale documentation by analyzing code-to-doc relationships."""
     ctx.ensure_object(dict)
     ctx.obj["repo"] = Path(repo).resolve()
-    ctx.obj["store"] = JsonStore(Path(repo).resolve() / ".doc-updater")
+    ctx.obj["store"] = JsonStore(Path(repo).resolve() / ".docsight")
 
 
 @cli.command()
 @click.pass_context
 def init(ctx: click.Context) -> None:
-    """Initialize doc-updater in the repository."""
+    """Initialize docsight in the repository."""
     repo = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     already = store_dir.exists()
     store_dir.mkdir(parents=True, exist_ok=True)
 
     gitignore = repo / ".gitignore"
-    entry = ".doc-updater/"
+    entry = ".docsight/"
     if gitignore.exists():
         content = gitignore.read_text()
         if entry not in content:
@@ -728,7 +728,7 @@ def init(ctx: click.Context) -> None:
     if already:
         click.echo(f"Already initialized in {repo}")
     else:
-        click.echo(f"Initialized doc-updater in {repo}")
+        click.echo(f"Initialized docsight in {repo}")
 ```
 
 - [ ] **Step 4: Run tests — expected PASS (3 passed)**
@@ -738,7 +738,7 @@ def init(ctx: click.Context) -> None:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/doc_updater/cli.py tests/test_cli.py
+git add src/docsight/cli.py tests/test_cli.py
 git commit -m "feat: CLI skeleton with init command"
 ```
 
@@ -749,7 +749,7 @@ git commit -m "feat: CLI skeleton with init command"
 ### Task 5: Python analyzer — element extraction + hashing
 
 **Files:**
-- Create: `src/doc_updater/analyzer/python_analyzer.py`
+- Create: `src/docsight/analyzer/python_analyzer.py`
 - Create: `tests/test_python_analyzer.py`
 
 Key Codex fixes in this task:
@@ -765,8 +765,8 @@ Key Codex fixes in this task:
 """Tests for Python AST analyzer."""
 import textwrap
 from pathlib import Path
-from doc_updater.analyzer.python_analyzer import PythonAnalyzer
-from doc_updater.analyzer.base import ElementKind
+from docsight.analyzer.python_analyzer import PythonAnalyzer
+from docsight.analyzer.base import ElementKind
 
 def _write(tmp_path, code):
     f = tmp_path / "sample.py"
@@ -894,7 +894,7 @@ Key implementation details:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/analyzer/python_analyzer.py tests/test_python_analyzer.py
+git add src/docsight/analyzer/python_analyzer.py tests/test_python_analyzer.py
 git commit -m "feat: Python analyzer with body-only hashing, full signature canon, binding tracking"
 ```
 
@@ -903,15 +903,15 @@ git commit -m "feat: Python analyzer with body-only hashing, full signature cano
 ### Task 6: Code dependency graph
 
 **Files:**
-- Create: `src/doc_updater/analyzer/graph.py`
+- Create: `src/docsight/analyzer/graph.py`
 - Create: `tests/test_graph.py`
 
 - [ ] **Step 1: Write tests**
 
 ```python
 """Tests for CodeGraph."""
-from doc_updater.analyzer.graph import CodeGraph
-from doc_updater.analyzer.base import GraphEdge, EdgeKind, ElementKind
+from docsight.analyzer.graph import CodeGraph
+from docsight.analyzer.base import GraphEdge, EdgeKind, ElementKind
 
 def _chain_graph():
     """A -> B -> C -> D, A -> E"""
@@ -981,7 +981,7 @@ def dependency_closure(self, element_ids: list[str], max_hops: int = 3) -> dict[
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/analyzer/graph.py tests/test_graph.py
+git add src/docsight/analyzer/graph.py tests/test_graph.py
 git commit -m "feat: CodeGraph with dependency_closure for transitive baseline snapshots"
 ```
 
@@ -990,7 +990,7 @@ git commit -m "feat: CodeGraph with dependency_closure for transitive baseline s
 ### Task 7: CLI index command
 
 **Files:**
-- Modify: `src/doc_updater/cli.py`
+- Modify: `src/docsight/cli.py`
 - Modify: `tests/test_cli.py`
 
 Codex fix #11: Report parse errors in output; fail with exit code 1 unless `--skip-errors`.
@@ -1005,7 +1005,7 @@ def test_index_command(tmp_repo):
     assert result.exit_code == 0
     assert "indexed" in result.output.lower()
     import json
-    data = json.loads((tmp_repo / ".doc-updater" / "index.json").read_text())
+    data = json.loads((tmp_repo / ".docsight" / "index.json").read_text())
     assert len(data["elements"]) > 0
 
 def test_index_finds_elements(tmp_repo):
@@ -1013,7 +1013,7 @@ def test_index_finds_elements(tmp_repo):
     runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
     runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
     import json
-    data = json.loads((tmp_repo / ".doc-updater" / "index.json").read_text())
+    data = json.loads((tmp_repo / ".docsight" / "index.json").read_text())
     names = {e["name"] for e in data["elements"].values()}
     assert {"AuthManager", "validate_token", "authenticate", "cache_lookup"} <= names
 
@@ -1055,7 +1055,7 @@ def index(ctx, path, skip_errors):
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/doc_updater/cli.py tests/test_cli.py
+git add src/docsight/cli.py tests/test_cli.py
 git commit -m "feat: CLI index command with syntax error reporting"
 ```
 
@@ -1066,7 +1066,7 @@ git commit -m "feat: CLI index command with syntax error reporting"
 ### Task 8: Markdown doc scanner
 
 **Files:**
-- Create: `src/doc_updater/docs/scanner.py`
+- Create: `src/docsight/docs/scanner.py`
 - Create: `tests/test_scanner.py`
 
 Codex fix #8: `RawReference` carries `section` heading for context.
@@ -1076,7 +1076,7 @@ Codex fix #8: `RawReference` carries `section` heading for context.
 ```python
 """Tests for markdown scanner."""
 import textwrap
-from doc_updater.docs.scanner import DocScanner
+from docsight.docs.scanner import DocScanner
 
 def test_finds_file_path_in_backticks():
     refs = DocScanner().scan_text("See `src/auth.py` for details.")
@@ -1153,7 +1153,7 @@ class RawReference:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/docs/scanner.py tests/test_scanner.py
+git add src/docsight/docs/scanner.py tests/test_scanner.py
 git commit -m "feat: markdown scanner with section tracking and confidence scoring"
 ```
 
@@ -1162,7 +1162,7 @@ git commit -m "feat: markdown scanner with section tracking and confidence scori
 ### Task 9: Doc-to-code mapper
 
 **Files:**
-- Create: `src/doc_updater/docs/mapper.py`
+- Create: `src/docsight/docs/mapper.py`
 - Create: `tests/test_mapper.py`
 
 Codex fix #7: File-path references create a MODULE-level reference, not per-element.
@@ -1172,9 +1172,9 @@ Codex fix #8: `ResolvedMapping` carries `text`, `context`, `section`.
 
 ```python
 """Tests for doc-to-code mapper."""
-from doc_updater.docs.mapper import DocMapper
-from doc_updater.docs.scanner import RawReference
-from doc_updater.analyzer.base import CodeElement, ElementKind
+from docsight.docs.mapper import DocMapper
+from docsight.docs.scanner import RawReference
+from docsight.analyzer.base import CodeElement, ElementKind
 
 def _elements():
     return {
@@ -1271,7 +1271,7 @@ For file-path resolution: resolve to the MODULE element `"src/auth.py::__module_
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/docs/mapper.py tests/test_mapper.py
+git add src/docsight/docs/mapper.py tests/test_mapper.py
 git commit -m "feat: mapper with module-level file refs, text/section preservation, ambiguity handling"
 ```
 
@@ -1280,7 +1280,7 @@ git commit -m "feat: mapper with module-level file refs, text/section preservati
 ### Task 10: CLI scan command
 
 **Files:**
-- Modify: `src/doc_updater/cli.py`
+- Modify: `src/docsight/cli.py`
 - Modify: `tests/test_cli.py`
 
 Codex fix #8: Persist `text`, `context`, `section` in mappings.json.
@@ -1295,7 +1295,7 @@ def test_scan_command(tmp_repo):
     result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
     assert result.exit_code == 0
     import json
-    m = json.loads((tmp_repo / ".doc-updater" / "mappings.json").read_text())
+    m = json.loads((tmp_repo / ".docsight" / "mappings.json").read_text())
     refs = m["docs"]["docs/auth-guide.md"]["references"]
     assert any("AuthManager" in r["element_id"] for r in refs)
     assert all("text" in r for r in refs)  # Codex fix #8
@@ -1310,7 +1310,7 @@ def test_scan_command(tmp_repo):
 ### Task 11: Staleness detector
 
 **Files:**
-- Create: `src/doc_updater/staleness/detector.py`
+- Create: `src/docsight/staleness/detector.py`
 - Create: `tests/test_detector.py`
 
 Codex fix #1: Baseline stores full dependency closure. Detector checks both `element_hashes` and `dependency_hashes`.
@@ -1319,9 +1319,9 @@ Codex fix #1: Baseline stores full dependency closure. Detector checks both `ele
 
 ```python
 """Tests for staleness detector."""
-from doc_updater.staleness.detector import StalenessDetector, DocStatus
-from doc_updater.analyzer.graph import CodeGraph
-from doc_updater.analyzer.base import GraphEdge, EdgeKind, ElementKind
+from docsight.staleness.detector import StalenessDetector, DocStatus
+from docsight.analyzer.graph import CodeGraph
+from docsight.analyzer.base import GraphEdge, EdgeKind, ElementKind
 
 def _detector(current_sig="a", current_body="b", verified_sig="a", verified_body="b", edges=None):
     elements = {"src/auth.py::fn": {"signature_hash": current_sig, "body_hash": current_body}}
@@ -1403,7 +1403,7 @@ Key changes:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/doc_updater/staleness/detector.py tests/test_detector.py
+git add src/docsight/staleness/detector.py tests/test_detector.py
 git commit -m "feat: staleness detector with dependency closure baseline for transitive detection"
 ```
 
@@ -1412,7 +1412,7 @@ git commit -m "feat: staleness detector with dependency closure baseline for tra
 ### Task 12: Rich reporter
 
 **Files:**
-- Create: `src/doc_updater/staleness/reporter.py`
+- Create: `src/docsight/staleness/reporter.py`
 - Create: `tests/test_reporter.py`
 
 - [ ] **Step 1–5:** Same as original plan Task 12 (unchanged — reporter was not flagged).
@@ -1422,12 +1422,12 @@ git commit -m "feat: staleness detector with dependency closure baseline for tra
 ### Task 13: CLI check, status, show commands
 
 **Files:**
-- Modify: `src/doc_updater/cli.py`
+- Modify: `src/docsight/cli.py`
 - Modify: `tests/test_cli.py`
 
 Key Codex fixes:
 - **Fix #1**: `check --baseline` stores full dependency closure hashes per doc
-- **Fix #4**: `check` auto-runs `index`+`scan` before checking (incremental). When auto-running `index`, always skip parse errors (warn but continue) — `check` is a convenience command and should not fail due to syntax errors in unrelated files. Explicit `doc-updater index` is strict by default.
+- **Fix #4**: `check` auto-runs `index`+`scan` before checking (incremental). When auto-running `index`, always skip parse errors (warn but continue) — `check` is a convenience command and should not fail due to syntax errors in unrelated files. Explicit `docsight index` is strict by default.
 - **Fix #10**: `check` persists the report in state.json; `status`/`show` load it
 - **Fix #18**: `check --baseline` also persists an "all healthy" report so `status`/`show` work immediately after
 
@@ -1440,7 +1440,7 @@ def test_check_baseline(tmp_repo):
     result = runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
     assert result.exit_code == 0
     import json
-    state = json.loads((tmp_repo / ".doc-updater" / "state.json").read_text())
+    state = json.loads((tmp_repo / ".docsight" / "state.json").read_text())
     # Verify dependency_hashes are stored (Codex fix #1)
     for doc_data in state["verified"].values():
         assert "dependency_hashes" in doc_data
@@ -1519,7 +1519,7 @@ def test_show_displays_staleness(tmp_repo):
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/doc_updater/cli.py tests/test_cli.py
+git add src/docsight/cli.py tests/test_cli.py
 git commit -m "feat: check with auto-refresh and dependency closure baseline, status/show read persisted report"
 ```
 
@@ -1530,8 +1530,8 @@ git commit -m "feat: check with auto-refresh and dependency closure baseline, st
 ### Task 14: Interactive HTML graph visualization
 
 **Files:**
-- Modify: `src/doc_updater/analyzer/graph.py`
-- Modify: `src/doc_updater/cli.py`
+- Modify: `src/docsight/analyzer/graph.py`
+- Modify: `src/docsight/cli.py`
 - Create: `tests/test_graph_export.py`
 
 Codex fix #3: Single `import json` at module scope. Removed `--export dot` (not implemented).
@@ -1541,8 +1541,8 @@ Codex fix #13: Search uses `hidden` toggle instead of opacity.
 
 ```python
 """Tests for HTML graph export."""
-from doc_updater.analyzer.graph import CodeGraph
-from doc_updater.analyzer.base import GraphEdge, EdgeKind, ElementKind
+from docsight.analyzer.graph import CodeGraph
+from docsight.analyzer.base import GraphEdge, EdgeKind, ElementKind
 
 def test_export_html(tmp_path):
     g = CodeGraph()
@@ -1597,7 +1597,7 @@ def test_graph_command(tmp_repo):
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/doc_updater/analyzer/graph.py src/doc_updater/cli.py tests/test_graph_export.py
+git add src/docsight/analyzer/graph.py src/docsight/cli.py tests/test_graph_export.py
 git commit -m "feat: interactive HTML graph with vis.js, stale highlighting, hidden-based search"
 ```
 
@@ -1615,7 +1615,7 @@ Codex fix #12: Test real transitive detection, duplicate names, stale mappings.
 ```python
 """End-to-end integration tests."""
 from click.testing import CliRunner
-from doc_updater.cli import cli
+from docsight.cli import cli
 import json
 
 def test_e2e_transitive_staleness(tmp_repo):
@@ -1729,8 +1729,8 @@ description: Check if documentation is stale due to code changes and suggest upd
 
 1. Ensure initialized and run check:
    ```bash
-   doc-updater init 2>/dev/null || true
-   doc-updater check --json
+   docsight init 2>/dev/null || true
+   docsight check --json
    ```
 
 2. Parse JSON output and present findings:
@@ -1740,7 +1740,7 @@ description: Check if documentation is stale due to code changes and suggest upd
 
 3. For visual overview:
    ```bash
-   doc-updater graph
+   docsight graph
    ```
 ```
 
@@ -1765,13 +1765,13 @@ Expected: All tests pass
 ```bash
 cd /tmp && mkdir test-repo && cd test-repo && git init
 # Copy fixture files
-doc-updater init
-doc-updater check --baseline
+docsight init
+docsight check --baseline
 # Modify code
-doc-updater check
-doc-updater check --json
-doc-updater show docs/auth-guide.md
-doc-updater graph
+docsight check
+docsight check --json
+docsight show docs/auth-guide.md
+docsight graph
 # Open graph.html in browser
 ```
 

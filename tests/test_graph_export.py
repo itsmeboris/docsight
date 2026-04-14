@@ -2,13 +2,13 @@
 
 import pytest
 
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement,
     EdgeKind,
     ElementKind,
     GraphEdge,
 )
-from doc_updater.analyzer.graph import CodeGraph, export_zoom_html
+from docsight.analyzer.graph import CodeGraph, export_zoom_html
 
 
 @pytest.fixture()

@@ -1,7 +1,7 @@
 {
-  "name": "doc-updater",
+  "name": "docsight",
   "owner": {
-    "name": "doc-updater"
+    "name": "docsight"
   },
   "metadata": {
     "description": "Detect stale documentation by tracking code-to-doc relationships.",
@@ -9,11 +9,11 @@
   },
   "plugins": [
     {
-      "name": "doc-updater",
+      "name": "docsight",
       "description": "Detect stale docs, analyze impact, find coverage gaps.",
       "version": "0.1.0",
       "author": {
-        "name": "doc-updater"
+        "name": "docsight"
       },
       "source": "."
     }

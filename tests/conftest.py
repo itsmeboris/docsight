@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for doc-updater tests."""
+"""Shared pytest fixtures for docsight tests."""
 
 import pytest
 

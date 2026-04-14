@@ -10,7 +10,7 @@ from typing import Any
 
 import networkx as nx
 
-from doc_updater.analyzer.base import EdgeKind, GraphEdge
+from docsight.analyzer.base import EdgeKind, GraphEdge
 
 # Node shape/colour constants for HTML export
 _KIND_SHAPE: dict[str, str] = {
@@ -172,7 +172,7 @@ class CodeGraph:
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>doc-updater: Code Graph</title>
+  <title>docsight: Code Graph</title>
   <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
   <style>
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -237,7 +237,7 @@ class CodeGraph:
 </head>
 <body>
   <div id="header">
-    <h1>doc-updater graph</h1>
+    <h1>docsight graph</h1>
     <div class="legend">
       <span class="legend-item"><span class="dot" style="background:#4A90D9"></span>Class</span>
       <span class="legend-item"><span class="dot" style="background:#67B7DC"></span>Method</span>
@@ -528,7 +528,7 @@ _ZOOM_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>doc-updater: Code Graph</title>
+<title>docsight: Code Graph</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -550,7 +550,7 @@ body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFo
 </head>
 <body>
 <div id="header">
-  <h1>doc-updater graph</h1>
+  <h1>docsight graph</h1>
   <div class="legend">
     <span class="legend-item"><span class="dot" style="background:#58a6ff;border-radius:0"></span>File</span>
     <span class="legend-item"><span class="dot" style="background:#4a90d9"></span>Class</span>

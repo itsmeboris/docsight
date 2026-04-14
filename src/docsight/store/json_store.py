@@ -1,4 +1,4 @@
-"""JSON-based persistence store for doc-updater index and state."""
+"""JSON-based persistence store for docsight index and state."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement,
     EdgeKind,
     ElementKind,
@@ -132,7 +132,7 @@ def _deserialize_edge(d: dict[str, Any]) -> GraphEdge:
 
 
 class JsonStore:
-    """Persist and load doc-updater data as JSON files."""
+    """Persist and load docsight data as JSON files."""
 
     INDEX_FILE = "index.json"
     MAPPINGS_FILE = "mappings.json"

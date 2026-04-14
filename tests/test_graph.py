@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from doc_updater.analyzer.base import EdgeKind, GraphEdge
-from doc_updater.analyzer.graph import CodeGraph
+from docsight.analyzer.base import EdgeKind, GraphEdge
+from docsight.analyzer.graph import CodeGraph
 
 
 @pytest.fixture

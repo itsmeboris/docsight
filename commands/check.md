@@ -1,12 +1,12 @@
 ---
 description: Check if documentation is stale and show what needs updating
-allowed-tools: Bash(doc-updater:*)
+allowed-tools: Bash(docsight:*)
 ---
 
-Run doc-updater check to detect stale documentation.
+Run docsight check to detect stale documentation.
 
 ```bash
-doc-updater check --json
+docsight check --json
 ```
 
 Parse the JSON output and present findings to the user:
@@ -17,5 +17,5 @@ Parse the JSON output and present findings to the user:
 
 If the user wants to accept current state as verified, offer to re-baseline:
 ```bash
-doc-updater check --baseline
+docsight check --baseline
 ```

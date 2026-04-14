@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.tree import Tree
 
-from doc_updater.staleness.detector import DocStatus, StalenessIssue
+from docsight.staleness.detector import DocStatus, StalenessIssue
 
 _console = Console()
 

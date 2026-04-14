@@ -1,6 +1,6 @@
-"""Tests for doc_updater.config — exclude patterns and config loading."""
+"""Tests for docsight.config — exclude patterns and config loading."""
 
-from doc_updater.config import get_exclude_patterns, load_config, should_exclude
+from docsight.config import get_exclude_patterns, load_config, should_exclude
 
 
 class TestLoadConfig:
@@ -11,16 +11,16 @@ class TestLoadConfig:
         assert load_config(tmp_path) == {}
 
     def test_returns_empty_dict_when_no_tool_section(self, tmp_path):
-        """Returns {} when pyproject.toml has no [tool.doc-updater]."""
+        """Returns {} when pyproject.toml has no [tool.docsight]."""
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "foo"\n', encoding="utf-8"
         )
         assert load_config(tmp_path) == {}
 
     def test_returns_config_dict(self, tmp_path):
-        """Returns the [tool.doc-updater] section."""
+        """Returns the [tool.docsight] section."""
         (tmp_path / "pyproject.toml").write_text(
-            '[tool.doc-updater]\nexclude = [".claude/", "tests/"]\n',
+            '[tool.docsight]\nexclude = [".claude/", "tests/"]\n',
             encoding="utf-8",
         )
         cfg = load_config(tmp_path)
@@ -38,17 +38,17 @@ class TestLoadConfig:
         )
         assert load_config(tmp_path) == {}
 
-    def test_handles_doc_updater_as_non_table(self, tmp_path):
-        """Returns {} when doc-updater value is not a table."""
+    def test_handles_docsight_as_non_table(self, tmp_path):
+        """Returns {} when docsight value is not a table."""
         (tmp_path / "pyproject.toml").write_text(
-            '[tool]\ndoc-updater = "not a table"\n', encoding="utf-8"
+            '[tool]\ndocsight = "not a table"\n', encoding="utf-8"
         )
         assert load_config(tmp_path) == {}
 
-    def test_handles_doc_updater_as_integer(self, tmp_path):
-        """Returns {} when doc-updater value is an integer."""
+    def test_handles_docsight_as_integer(self, tmp_path):
+        """Returns {} when docsight value is an integer."""
         (tmp_path / "pyproject.toml").write_text(
-            '[tool]\ndoc-updater = 42\n', encoding="utf-8"
+            '[tool]\ndocsight = 42\n', encoding="utf-8"
         )
         assert load_config(tmp_path) == {}
 

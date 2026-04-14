@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from doc_updater.analyzer.base import ElementKind
-from doc_updater.analyzer.python_analyzer import PythonAnalyzer
+from docsight.analyzer.base import ElementKind
+from docsight.analyzer.python_analyzer import PythonAnalyzer
 
 
 @pytest.fixture
@@ -353,7 +353,7 @@ class TestResolveCalls:
         elements = {e.element_id: e for e in fa.elements}
         analyses = {str(path): fa}
         edges = analyzer.resolve_calls(elements, analyses)
-        from doc_updater.analyzer.base import EdgeKind
+        from docsight.analyzer.base import EdgeKind
 
         inh_edges = [e for e in edges if e.kind == EdgeKind.INHERITS]
         child_el = next(e for e in fa.elements if e.name == "Child")
@@ -394,7 +394,7 @@ class TestResolveCalls:
                 elements[el.element_id] = el
         analyses = {str(file_a): fa_a, str(file_b): fa_b}
         edges = analyzer.resolve_calls(elements, analyses)
-        from doc_updater.analyzer.base import EdgeKind
+        from docsight.analyzer.base import EdgeKind
         inh_edges = [e for e in edges if e.kind == EdgeKind.INHERITS]
         child_el = next(e for e in fa_a.elements if e.name == "Child")
         base_a = next(e for e in fa_a.elements if e.name == "Base")

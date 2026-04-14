@@ -1,7 +1,7 @@
 """End-to-end integration tests."""
 import json
 from click.testing import CliRunner
-from doc_updater.cli import cli
+from docsight.cli import cli
 
 
 class TestE2E:
@@ -81,7 +81,7 @@ class TestE2E:
         # Create a normal baseline first
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
         # Simulate old-format state by removing format_version
-        state_path = tmp_repo / ".doc-updater" / "state.json"
+        state_path = tmp_repo / ".docsight" / "state.json"
         state = json.loads(state_path.read_text())
         state.pop("format_version", None)
         state_path.write_text(json.dumps(state))

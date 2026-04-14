@@ -227,7 +227,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>doc-updater report</title>
+<title>docsight report</title>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -326,7 +326,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <header>
-  <h1>doc-updater report</h1>
+  <h1>docsight report</h1>
   <div class="stats">
     <span>Files: <b>{n_files}</b></span>
     <span>Elements: <b>{n_elements}</b></span>

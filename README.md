@@ -1,8 +1,8 @@
-# doc-updater
+# docsight
 
 Detect stale documentation by analyzing code-to-doc relationships.
 
-**doc-updater** builds a graph of your Python codebase, scans your markdown docs for references to code elements, and tells you exactly which docs are stale when code changes — including transitive dependencies.
+**docsight** builds a graph of your Python codebase, scans your markdown docs for references to code elements, and tells you exactly which docs are stale when code changes — including transitive dependencies.
 
 ---
 
@@ -28,7 +28,7 @@ Code changes. Docs don't update themselves. You end up with:
 - Guides referencing functions that were renamed
 - Tutorials using patterns that changed three PRs ago
 
-**doc-updater** catches this automatically. After a code change, one command tells you which docs need attention and why.
+**docsight** catches this automatically. After a code change, one command tells you which docs need attention and why.
 
 ---
 
@@ -49,19 +49,19 @@ pip install -e .
 ```bash
 cd your-python-project
 
-# Initialize (creates .doc-updater/, indexes code, sets baseline)
-doc-updater init
+# Initialize (creates .docsight/, indexes code, sets baseline)
+docsight init
 
 # Optionally install pre-push git hook
-doc-updater hooks install
+docsight hooks install
 
 # ... make code changes ...
 
 # Check which docs are now stale
-doc-updater check
+docsight check
 
 # See what changed and which docs need updating
-doc-updater diff
+docsight diff
 ```
 
 Example output:
@@ -137,38 +137,38 @@ If a documented function is renamed or deleted, it's flagged as `reference_lost`
 
 | Command | Description |
 |---------|-------------|
-| `doc-updater init` | Initialize, index, scan, and baseline (one command to start) |
-| `doc-updater hooks install` | Install pre-push git hook that runs `check` |
-| `doc-updater hooks uninstall` | Remove the pre-push hook |
-| `doc-updater index` | Parse Python files, build code index + dependency graph |
-| `doc-updater scan` | Scan markdown docs, auto-detect code references |
-| `doc-updater check --baseline` | Set current state as verified baseline |
-| `doc-updater check` | Detect stale docs (exit code 1 if any stale) |
-| `doc-updater check --json` | Machine-readable JSON output (for CI) |
-| `doc-updater status` | Show last check summary |
-| `doc-updater show <doc>` | Detailed tree view for one doc |
-| `doc-updater impact <target>` | Show blast radius of changing an element or file |
-| `doc-updater diff` | Show which docs need updating based on code changes |
-| `doc-updater graph` | Export semantic-zoom dependency graph (file → class → method) |
-| `doc-updater coverage` | Show doc coverage (public API only by default) |
-| `doc-updater report` | Generate interactive HTML report |
-| `doc-updater clean` | Remove all doc-updater data from the repo |
+| `docsight init` | Initialize, index, scan, and baseline (one command to start) |
+| `docsight hooks install` | Install pre-push git hook that runs `check` |
+| `docsight hooks uninstall` | Remove the pre-push hook |
+| `docsight index` | Parse Python files, build code index + dependency graph |
+| `docsight scan` | Scan markdown docs, auto-detect code references |
+| `docsight check --baseline` | Set current state as verified baseline |
+| `docsight check` | Detect stale docs (exit code 1 if any stale) |
+| `docsight check --json` | Machine-readable JSON output (for CI) |
+| `docsight status` | Show last check summary |
+| `docsight show <doc>` | Detailed tree view for one doc |
+| `docsight impact <target>` | Show blast radius of changing an element or file |
+| `docsight diff` | Show which docs need updating based on code changes |
+| `docsight graph` | Export semantic-zoom dependency graph (file → class → method) |
+| `docsight coverage` | Show doc coverage (public API only by default) |
+| `docsight report` | Generate interactive HTML report |
+| `docsight clean` | Remove all docsight data from the repo |
 
 ### Key flags
 
 ```bash
-doc-updater check --json              # JSON output for CI
-doc-updater check --direct-only       # Skip transitive checks
-doc-updater check --max-hops 5        # Increase transitive depth (default: 3)
-doc-updater impact src/auth.py        # Blast radius for all elements in a file
-doc-updater impact cache_lookup --json # Impact analysis as JSON
-doc-updater diff                      # Changes vs stored baseline
-doc-updater diff --base main          # Changes vs a git ref
-doc-updater coverage --gaps           # Files with zero documented public API
-doc-updater coverage --all-elements   # Count every element (not just public API)
-doc-updater graph --flat              # Old flat vis.js layout
-doc-updater graph --export json       # Export graph as JSON
-doc-updater clean --keep-gitignore    # Remove data but keep .gitignore entry
+docsight check --json              # JSON output for CI
+docsight check --direct-only       # Skip transitive checks
+docsight check --max-hops 5        # Increase transitive depth (default: 3)
+docsight impact src/auth.py        # Blast radius for all elements in a file
+docsight impact cache_lookup --json # Impact analysis as JSON
+docsight diff                      # Changes vs stored baseline
+docsight diff --base main          # Changes vs a git ref
+docsight coverage --gaps           # Files with zero documented public API
+docsight coverage --all-elements   # Count every element (not just public API)
+docsight graph --flat              # Old flat vis.js layout
+docsight graph --export json       # Export graph as JSON
+docsight clean --keep-gitignore    # Remove data but keep .gitignore entry
 ```
 
 ---
@@ -179,29 +179,29 @@ doc-updater clean --keep-gitignore    # Remove data but keep .gitignore entry
 
 ```bash
 # After code changes, check docs
-doc-updater check
+docsight check
 
 # See details for a specific doc
-doc-updater show docs/auth-guide.md
+docsight show docs/auth-guide.md
 
 # After updating the docs, re-baseline
-doc-updater check --baseline
+docsight check --baseline
 ```
 
 ### CI integration
 
 The baseline must be created **locally** and committed — CI only checks against it.
 
-`init` adds `.doc-updater/` to `.gitignore` by default, so you need to
+`init` adds `.docsight/` to `.gitignore` by default, so you need to
 force-add `state.json` (the only file CI needs):
 
 ```bash
 # One-time setup (run locally)
-doc-updater init
-doc-updater check --baseline
+docsight init
+docsight check --baseline
 git add .gitignore
-git add -f .doc-updater/state.json
-git commit -m "chore: add doc-updater baseline"
+git add -f .docsight/state.json
+git commit -m "chore: add docsight baseline"
 ```
 
 Then in CI, just check:
@@ -210,17 +210,17 @@ Then in CI, just check:
 # GitHub Actions example
 - name: Check doc staleness
   run: |
-    pip install doc-updater
-    doc-updater check  # exits 1 if docs are stale vs. committed baseline
+    pip install docsight
+    docsight check  # exits 1 if docs are stale vs. committed baseline
 ```
 
 `check` auto-regenerates `index.json` and `mappings.json` — only `state.json`
 needs to be in the repo. After updating stale docs, re-baseline and commit:
 
 ```bash
-doc-updater check --baseline
-git add -f .doc-updater/state.json
-git commit -m "chore: update doc-updater baseline"
+docsight check --baseline
+git add -f .docsight/state.json
+git commit -m "chore: update docsight baseline"
 ```
 
 The `--json` flag produces machine-readable output:
@@ -258,10 +258,10 @@ The `--json` flag produces machine-readable output:
 
 ### Exclude patterns
 
-Add a `[tool.doc-updater]` section to `pyproject.toml` to exclude paths from indexing and scanning:
+Add a `[tool.docsight]` section to `pyproject.toml` to exclude paths from indexing and scanning:
 
 ```toml
-[tool.doc-updater]
+[tool.docsight]
 exclude = ["tests/", ".claude/", ".cursor/", "vendor/"]
 ```
 
@@ -272,7 +272,7 @@ Patterns support:
 
 ### Data files
 
-doc-updater stores all data in `.doc-updater/` (auto-added to `.gitignore`):
+docsight stores all data in `.docsight/` (auto-added to `.gitignore`):
 
 | File | Purpose |
 |------|---------|
@@ -302,7 +302,7 @@ Use `--all-elements` to count every element (classes, functions, and methods).
 ## Interactive Graph
 
 ```bash
-doc-updater graph
+docsight graph
 # Opens graph.html with interactive vis.js visualization
 ```
 
@@ -316,36 +316,36 @@ Features:
 Export as JSON for programmatic use:
 
 ```bash
-doc-updater graph --export json -o graph.json
+docsight graph --export json -o graph.json
 ```
 
 ---
 
 ## Claude Code Plugin
 
-doc-updater ships as a Claude Code plugin. Install it to get slash commands in any conversation:
+docsight ships as a Claude Code plugin. Install it to get slash commands in any conversation:
 
 ```bash
-claude plugin add /path/to/doc-updater
+claude plugin add /path/to/docsight
 ```
 
 ### Available commands
 
 | Command | What it does |
 |---------|-------------|
-| `/doc-updater:init` | Initialize and baseline the repo |
-| `/doc-updater:check` | Check staleness, suggest fixes for stale docs |
-| `/doc-updater:impact <target>` | Show blast radius of changing an element or file |
-| `/doc-updater:diff [--base REF]` | Show which docs need updating for your changes |
-| `/doc-updater:coverage [--gaps]` | Coverage stats or find where to write docs next |
-| `/doc-updater:graph` | Generate and open the semantic-zoom dependency graph |
-| `/doc-updater:report` | Generate and open the HTML report |
+| `/docsight:init` | Initialize and baseline the repo |
+| `/docsight:check` | Check staleness, suggest fixes for stale docs |
+| `/docsight:impact <target>` | Show blast radius of changing an element or file |
+| `/docsight:diff [--base REF]` | Show which docs need updating for your changes |
+| `/docsight:coverage [--gaps]` | Coverage stats or find where to write docs next |
+| `/docsight:graph` | Generate and open the semantic-zoom dependency graph |
+| `/docsight:report` | Generate and open the HTML report |
 
 ### Git hooks
 
 ```bash
-doc-updater hooks install    # pre-push: fails if docs are stale
-doc-updater hooks uninstall  # remove the hook
+docsight hooks install    # pre-push: fails if docs are stale
+docsight hooks uninstall  # remove the hook
 ```
 
 ---
@@ -356,7 +356,7 @@ doc-updater hooks uninstall  # remove the hook
 
 ```bash
 git clone <repo-url>
-cd doc-updater
+cd docsight
 pip install -e ".[dev]"
 ```
 
@@ -374,9 +374,9 @@ pylint tests/       # Target: clean
 <summary>Click to expand</summary>
 
 ```
-src/doc_updater/
+src/docsight/
 ├── cli.py                  # Click CLI (init, index, scan, check, status, show, graph, coverage, report, clean)
-├── config.py               # Load [tool.doc-updater] from pyproject.toml, exclude patterns
+├── config.py               # Load [tool.docsight] from pyproject.toml, exclude patterns
 ├── report.py               # Hierarchical HTML report generator
 ├── analyzer/
 │   ├── base.py             # Data models (CodeElement, Parameter, GraphEdge, etc.)

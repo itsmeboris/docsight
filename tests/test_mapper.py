@@ -1,10 +1,10 @@
-"""Tests for doc_updater.docs.mapper."""
+"""Tests for docsight.docs.mapper."""
 
 import pytest
 
-from doc_updater.analyzer.base import CodeElement, ElementKind
-from doc_updater.docs.mapper import DocMapper, ResolvedMapping
-from doc_updater.docs.scanner import RawReference
+from docsight.analyzer.base import CodeElement, ElementKind
+from docsight.docs.mapper import DocMapper, ResolvedMapping
+from docsight.docs.scanner import RawReference
 
 
 def _make_element(

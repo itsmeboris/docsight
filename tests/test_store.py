@@ -1,7 +1,7 @@
-"""Tests for doc_updater.store.json_store."""
+"""Tests for docsight.store.json_store."""
 
 import pytest
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement,
     EdgeKind,
     ElementKind,
@@ -10,7 +10,7 @@ from doc_updater.analyzer.base import (
     ImportInfo,
     Parameter,
 )
-from doc_updater.store.json_store import JsonStore
+from docsight.store.json_store import JsonStore
 
 
 def make_element(**kwargs):
@@ -39,13 +39,13 @@ def make_element(**kwargs):
 
 class TestJsonStoreIndex:
     def test_roundtrip_empty_index(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         store.save_index({})
         loaded = store.load_index()
         assert loaded == {}
 
     def test_roundtrip_single_element(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         el = make_element()
         store.save_index({"mod.func": el})
         loaded = store.load_index()
@@ -60,7 +60,7 @@ class TestJsonStoreIndex:
         assert restored.end_lineno == el.end_lineno
 
     def test_roundtrip_with_parameters(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         p = Parameter(name="x", annotation="int", default=None, kind="POSITIONAL_OR_KEYWORD")
         el = make_element(parameters=[p], return_annotation="bool")
         store.save_index({"mod.func": el})
@@ -73,14 +73,14 @@ class TestJsonStoreIndex:
         assert restored.return_annotation == "bool"
 
     def test_roundtrip_with_raw_calls(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         el = make_element(raw_calls=["mod.helper", "mod.util"])
         store.save_index({"mod.func": el})
         loaded = store.load_index()
         assert loaded["mod.func"].raw_calls == ["mod.helper", "mod.util"]
 
     def test_roundtrip_all_element_kinds(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         index = {
             kind.value: make_element(
                 element_id=kind.value,
@@ -96,12 +96,12 @@ class TestJsonStoreIndex:
             assert loaded[kind.value].kind == kind
 
     def test_missing_index_returns_empty(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         loaded = store.load_index()
         assert loaded == {}
 
     def test_creates_directory_on_save(self, tmp_path):
-        store_dir = tmp_path / "nested" / ".doc-updater"
+        store_dir = tmp_path / "nested" / ".docsight"
         assert not store_dir.exists()
         store = JsonStore(store_dir)
         store.save_index({})
@@ -136,14 +136,14 @@ class TestJsonStoreMappings:
         }
 
     def test_roundtrip_mappings(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         mappings = self._make_mappings()
         store.save_mappings(mappings)
         loaded = store.load_mappings()
         assert loaded == mappings
 
     def test_mappings_have_text_section_context(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         mappings = self._make_mappings()
         store.save_mappings(mappings)
         loaded = store.load_mappings()
@@ -154,12 +154,12 @@ class TestJsonStoreMappings:
         assert "element_id" in first_ref
 
     def test_missing_mappings_returns_empty(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         loaded = store.load_mappings()
         assert loaded == {}
 
     def test_section_can_be_none(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         mappings = {
             "docs/guide.md": [
                 {"element_id": "mod.func", "text": "func()", "section": None, "context": ""}
@@ -195,14 +195,14 @@ class TestJsonStoreState:
         }
 
     def test_roundtrip_state(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         state = self._make_state()
         store.save_state(state)
         loaded = store.load_state()
         assert loaded == state
 
     def test_state_has_dependency_hashes(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         state = self._make_state()
         store.save_state(state)
         loaded = store.load_state()
@@ -212,12 +212,12 @@ class TestJsonStoreState:
         }
 
     def test_missing_state_returns_empty(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         loaded = store.load_state()
         assert loaded == {}
 
     def test_empty_dependency_hashes_roundtrip(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         state = {
             "docs/guide.md": {
                 "doc_hash": "abc",
@@ -233,7 +233,7 @@ class TestJsonStoreState:
 
 class TestJsonStoreFileAnalysis:
     def test_roundtrip_file_analyses(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         imp = ImportInfo(module="os.path", names=["join"], alias=None, lineno=1)
         el = make_element()
         fa = FileAnalysis(
@@ -254,7 +254,7 @@ class TestJsonStoreFileAnalysis:
         assert restored_fa.parse_errors == []
 
     def test_roundtrip_with_parse_errors(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         fa = FileAnalysis(
             file="bad.py",
             elements=[],
@@ -266,14 +266,14 @@ class TestJsonStoreFileAnalysis:
         assert loaded["bad.py"].parse_errors == ["SyntaxError at line 3"]
 
     def test_missing_file_analyses_returns_empty(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         loaded = store.load_file_analyses()
         assert loaded == {}
 
 
 class TestJsonStoreGraphEdges:
     def test_roundtrip_edges(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         edges = [
             GraphEdge(source="a.func", target="b.helper", kind=EdgeKind.CALLS),
             GraphEdge(source="c.Child", target="d.Parent", kind=EdgeKind.INHERITS),
@@ -286,13 +286,13 @@ class TestJsonStoreGraphEdges:
         assert loaded[1].kind == EdgeKind.INHERITS
 
     def test_missing_edges_returns_empty(self, tmp_path):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         loaded = store.load_edges()
         assert loaded == []
 
     @pytest.mark.parametrize("kind", list(EdgeKind))
     def test_all_edge_kinds_roundtrip(self, tmp_path, kind):
-        store = JsonStore(tmp_path / ".doc-updater")
+        store = JsonStore(tmp_path / ".docsight")
         edges = [GraphEdge(source="a", target="b", kind=kind)]
         store.save_edges(edges)
         loaded = store.load_edges()

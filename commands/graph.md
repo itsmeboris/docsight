@@ -1,18 +1,18 @@
 ---
 description: Generate the interactive dependency graph and open it
 argument-hint: '[--flat] [--export json]'
-allowed-tools: Bash(doc-updater:*), Bash(open:*), Bash(xdg-open:*)
+allowed-tools: Bash(docsight:*), Bash(open:*), Bash(xdg-open:*)
 ---
 
 Generate the semantic-zoom dependency graph.
 
 ```bash
-doc-updater graph
+docsight graph
 ```
 
-After generation, tell the user the output path (`.doc-updater/graph.html`) and offer to open it:
+After generation, tell the user the output path (`.docsight/graph.html`) and offer to open it:
 ```bash
-open .doc-updater/graph.html 2>/dev/null || xdg-open .doc-updater/graph.html 2>/dev/null || true
+open .docsight/graph.html 2>/dev/null || xdg-open .docsight/graph.html 2>/dev/null || true
 ```
 
 Explain the graph interaction:

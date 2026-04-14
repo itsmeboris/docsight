@@ -1,8 +1,8 @@
-"""Tests for doc_updater.docs.scanner."""
+"""Tests for docsight.docs.scanner."""
 
 import pytest
 
-from doc_updater.docs.scanner import DocScanner, RawReference
+from docsight.docs.scanner import DocScanner, RawReference
 
 
 class TestRawReference:

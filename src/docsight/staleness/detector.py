@@ -1,4 +1,4 @@
-"""Staleness detection logic for doc-updater."""
+"""Staleness detection logic for docsight."""
 
 from __future__ import annotations
 

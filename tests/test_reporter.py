@@ -1,4 +1,4 @@
-"""Tests for doc_updater.staleness.reporter."""
+"""Tests for docsight.staleness.reporter."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from doc_updater.staleness.detector import DocStatus, StalenessIssue
-from doc_updater.staleness.reporter import has_stale, summarize, to_json
+from docsight.staleness.detector import DocStatus, StalenessIssue
+from docsight.staleness.reporter import has_stale, summarize, to_json
 
 
 def _make_report(

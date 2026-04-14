@@ -1,4 +1,4 @@
-"""Tests for doc_updater.cli."""
+"""Tests for docsight.cli."""
 # pylint: disable=too-many-lines
 
 import json
@@ -6,26 +6,26 @@ import json
 import pytest
 from click.testing import CliRunner
 
-from doc_updater.cli import cli
+from docsight.cli import cli
 
 
 class TestCliInit:
     """Tests for the init command."""
 
-    def test_init_creates_doc_updater_dir(self, tmp_path):
-        """init creates the .doc-updater directory."""
+    def test_init_creates_docsight_dir(self, tmp_path):
+        """init creates the .docsight directory."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         assert result.exit_code == 0, result.output
-        assert (tmp_path / ".doc-updater").is_dir()
+        assert (tmp_path / ".docsight").is_dir()
 
     def test_init_adds_gitignore_entry(self, tmp_path):
-        """init adds .doc-updater/ entry to .gitignore."""
+        """init adds .docsight/ entry to .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         gitignore = tmp_path / ".gitignore"
         assert gitignore.exists()
-        assert ".doc-updater/" in gitignore.read_text(encoding="utf-8")
+        assert ".docsight/" in gitignore.read_text(encoding="utf-8")
 
     def test_init_idempotent_dir(self, tmp_path):
         """init is idempotent and does not fail when run twice."""
@@ -34,19 +34,19 @@ class TestCliInit:
         result2 = runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         assert result1.exit_code == 0
         assert result2.exit_code == 0
-        assert (tmp_path / ".doc-updater").is_dir()
+        assert (tmp_path / ".docsight").is_dir()
 
     def test_init_idempotent_gitignore_no_duplicate(self, tmp_path):
-        """init does not add duplicate .doc-updater/ entries to .gitignore."""
+        """init does not add duplicate .docsight/ entries to .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         gitignore = tmp_path / ".gitignore"
         content = gitignore.read_text(encoding="utf-8")
-        assert content.count(".doc-updater/") == 1
+        assert content.count(".docsight/") == 1
 
     def test_init_appends_to_existing_gitignore(self, tmp_path):
-        """init appends .doc-updater/ to an existing .gitignore without clobbering it."""
+        """init appends .docsight/ to an existing .gitignore without clobbering it."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("*.pyc\n__pycache__/\n", encoding="utf-8")
         runner = CliRunner()
@@ -54,7 +54,7 @@ class TestCliInit:
         content = gitignore.read_text(encoding="utf-8")
         assert "*.pyc" in content
         assert "__pycache__/" in content
-        assert ".doc-updater/" in content
+        assert ".docsight/" in content
 
     def test_init_outputs_success_message(self, tmp_path):
         """init prints a success message on exit."""
@@ -69,17 +69,17 @@ class TestCliInit:
         runner = CliRunner()
         result = runner.invoke(cli, ["init"])
         assert result.exit_code == 0
-        assert (tmp_path / ".doc-updater").is_dir()
+        assert (tmp_path / ".docsight").is_dir()
 
     def test_appends_newline_when_gitignore_lacks_trailing_newline(self, tmp_path):
-        """Ensure .doc-updater/ is added correctly even when gitignore has no trailing newline."""
+        """Ensure .docsight/ is added correctly even when gitignore has no trailing newline."""
         gitignore = tmp_path / ".gitignore"
         gitignore.write_text("*.pyc", encoding="utf-8")  # no trailing newline
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         content = gitignore.read_text(encoding="utf-8")
-        # .doc-updater/ entry should appear after existing content
-        assert ".doc-updater/" in content
+        # .docsight/ entry should appear after existing content
+        assert ".docsight/" in content
         assert content.startswith("*.pyc\n")
 
     def test_init_auto_baselines(self, tmp_repo):
@@ -90,7 +90,7 @@ class TestCliInit:
         assert "Baseline" in result.output
         # state.json should have verified entries
         state = json.loads(
-            (tmp_repo / ".doc-updater" / "state.json").read_text()
+            (tmp_repo / ".docsight" / "state.json").read_text()
         )
         assert "verified" in state
         assert len(state["verified"]) > 0
@@ -101,7 +101,7 @@ class TestCliInit:
         result = runner.invoke(cli, ["--repo", str(tmp_path), "init", "--no-baseline"])
         assert result.exit_code == 0, result.output
         assert "Baseline" not in result.output
-        assert (tmp_path / ".doc-updater").is_dir()
+        assert (tmp_path / ".docsight").is_dir()
 
 
 # ---------------------------------------------------------------------------
@@ -121,11 +121,11 @@ class TestCliHooks:
         hook = tmp_repo / ".git" / "hooks" / "pre-push"
         assert hook.exists()
         content = hook.read_text()
-        assert "doc-updater check" in content
+        assert "docsight check" in content
         # Must drain stdin so git doesn't hang
         assert "cat > /dev/null" in content
-        # Must guard against doc-updater not being installed
-        assert "command -v doc-updater" in content
+        # Must guard against docsight not being installed
+        assert "command -v docsight" in content
 
     def test_hooks_install_idempotent(self, tmp_repo):
         """hooks install is idempotent — does not duplicate."""
@@ -135,7 +135,7 @@ class TestCliHooks:
         runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
         hook = tmp_repo / ".git" / "hooks" / "pre-push"
         content = hook.read_text()
-        assert content.count("doc-updater check") == 1
+        assert content.count("docsight check") == 1
 
     def test_hooks_install_appends_to_existing(self, tmp_repo):
         """hooks install appends to an existing pre-push hook."""
@@ -148,13 +148,13 @@ class TestCliHooks:
         runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
         content = (hooks_dir / "pre-push").read_text()
         assert "existing" in content
-        assert "doc-updater check" in content
+        assert "docsight check" in content
         # Appended block must also drain stdin and guard
         assert "cat > /dev/null" in content
-        assert "command -v doc-updater" in content
+        assert "command -v docsight" in content
 
     def test_hooks_uninstall_removes_hook(self, tmp_repo):
-        """hooks uninstall removes the doc-updater pre-push hook."""
+        """hooks uninstall removes the docsight pre-push hook."""
         (tmp_repo / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
@@ -163,17 +163,17 @@ class TestCliHooks:
         assert not (tmp_repo / ".git" / "hooks" / "pre-push").exists()
 
     def test_hooks_uninstall_preserves_other_hooks(self, tmp_repo):
-        """hooks uninstall preserves non-doc-updater lines in pre-push."""
+        """hooks uninstall preserves non-docsight lines in pre-push."""
         hooks_dir = tmp_repo / ".git" / "hooks"
         hooks_dir.mkdir(parents=True, exist_ok=True)
         (hooks_dir / "pre-push").write_text(
-            "#!/bin/sh\necho 'other tool'\n# doc-updater: fail push if docs are stale\ndoc-updater check\n"
+            "#!/bin/sh\necho 'other tool'\n# docsight: fail push if docs are stale\ndocsight check\n"
         )
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "uninstall"])
         content = (hooks_dir / "pre-push").read_text()
         assert "other tool" in content
-        assert "doc-updater" not in content
+        assert "docsight" not in content
 
     def test_hooks_uninstall_noop_when_missing(self, tmp_repo):
         """hooks uninstall is safe when no pre-push hook exists."""
@@ -192,48 +192,48 @@ class TestCliClean:
     """Tests for the clean command."""
 
     def test_clean_removes_store_dir(self, tmp_path):
-        """clean removes the .doc-updater/ directory."""
+        """clean removes the .docsight/ directory."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
-        assert (tmp_path / ".doc-updater").exists()
+        assert (tmp_path / ".docsight").exists()
         result = runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         assert result.exit_code == 0
-        assert not (tmp_path / ".doc-updater").exists()
+        assert not (tmp_path / ".docsight").exists()
 
     def test_clean_removes_gitignore_entries(self, tmp_path):
-        """clean removes all doc-updater entries from .gitignore."""
+        """clean removes all docsight entries from .gitignore."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         gi = (tmp_path / ".gitignore").read_text()
-        assert ".doc-updater/" in gi
+        assert ".docsight/" in gi
         runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         content = (tmp_path / ".gitignore").read_text()
-        assert ".doc-updater/" not in content
+        assert ".docsight/" not in content
 
     def test_clean_keep_gitignore(self, tmp_path):
         """clean --keep-gitignore preserves the .gitignore entry."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         runner.invoke(cli, ["--repo", str(tmp_path), "clean", "--keep-gitignore"])
-        assert ".doc-updater/" in (tmp_path / ".gitignore").read_text()
+        assert ".docsight/" in (tmp_path / ".gitignore").read_text()
 
     def test_clean_noop_when_missing(self, tmp_path):
-        """clean is safe when .doc-updater/ does not exist."""
+        """clean is safe when .docsight/ does not exist."""
         runner = CliRunner()
         result = runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         assert result.exit_code == 0
         assert "nothing" in result.output.lower()
 
     def test_clean_preserves_other_gitignore_entries(self, tmp_path):
-        """clean only removes the .doc-updater/ line, not other entries."""
-        (tmp_path / ".gitignore").write_text("*.pyc\n.doc-updater/\n__pycache__/\n")
-        (tmp_path / ".doc-updater").mkdir()
+        """clean only removes the .docsight/ line, not other entries."""
+        (tmp_path / ".gitignore").write_text("*.pyc\n.docsight/\n__pycache__/\n")
+        (tmp_path / ".docsight").mkdir()
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         content = (tmp_path / ".gitignore").read_text()
         assert "*.pyc" in content
         assert "__pycache__/" in content
-        assert ".doc-updater/" not in content
+        assert ".docsight/" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -243,13 +243,13 @@ class TestCliIndex:
     """Tests for the index command."""
 
     def test_index_command_creates_index_json(self, tmp_repo):
-        """index creates index.json in the .doc-updater directory."""
+        """index creates index.json in the .docsight directory."""
         runner = CliRunner()
         # First init, then index
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         assert result.exit_code == 0, result.output
-        index_file = tmp_repo / ".doc-updater" / "index.json"
+        index_file = tmp_repo / ".docsight" / "index.json"
         assert index_file.exists()
 
     def test_index_finds_expected_elements(self, tmp_repo):
@@ -257,7 +257,7 @@ class TestCliIndex:
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
-        index_file = tmp_repo / ".doc-updater" / "index.json"
+        index_file = tmp_repo / ".docsight" / "index.json"
         index = json.loads(index_file.read_text(encoding="utf-8"))
         names = {v["name"] for v in index.values()}
         assert "AuthManager" in names
@@ -312,7 +312,7 @@ class TestCliScan:
         assert result.exit_code == 0, result.output
         assert "Scanned" in result.output
 
-        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings_file = tmp_repo / ".docsight" / "mappings.json"
         assert mappings_file.exists()
 
         mappings = json.loads(mappings_file.read_text(encoding="utf-8"))
@@ -350,7 +350,7 @@ class TestCliScan:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
-        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings_file = tmp_repo / ".docsight" / "mappings.json"
         mappings = json.loads(mappings_file.read_text(encoding="utf-8"))
         # Each doc entry should have 'mapped' and 'unmapped' keys
         for doc_key, doc_val in mappings.items():
@@ -379,7 +379,7 @@ class TestCliCheck:
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
-        state_file = tmp_repo / ".doc-updater" / "state.json"
+        state_file = tmp_repo / ".docsight" / "state.json"
         assert state_file.exists()
         state = json.loads(state_file.read_text(encoding="utf-8"))
         assert "verified" in state
@@ -395,9 +395,9 @@ class TestCliCheck:
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
         assert result.exit_code == 0, result.output
         # Verify index was created
-        assert (tmp_repo / ".doc-updater" / "index.json").exists()
+        assert (tmp_repo / ".docsight" / "index.json").exists()
         # Verify mappings were created
-        assert (tmp_repo / ".doc-updater" / "mappings.json").exists()
+        assert (tmp_repo / ".docsight" / "mappings.json").exists()
 
     def test_check_baseline_stores_healthy_last_report(self, tmp_repo):
         """check --baseline persists an 'all healthy' last_report."""
@@ -405,7 +405,7 @@ class TestCliCheck:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
         state = json.loads(
-            (tmp_repo / ".doc-updater" / "state.json").read_text(encoding="utf-8")
+            (tmp_repo / ".docsight" / "state.json").read_text(encoding="utf-8")
         )
         assert "last_report" in state
         for doc_data in state["last_report"].values():
@@ -420,7 +420,7 @@ class TestCliCheck:
 
         # Check which elements got mapped
         mappings = json.loads(
-            (tmp_repo / ".doc-updater" / "mappings.json").read_text(encoding="utf-8")
+            (tmp_repo / ".docsight" / "mappings.json").read_text(encoding="utf-8")
         )
         # Find any mapped element_id to determine what to change
         mapped_ids = []
@@ -477,7 +477,7 @@ class TestCliCheck:
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "check"])
         state = json.loads(
-            (tmp_repo / ".doc-updater" / "state.json").read_text(encoding="utf-8")
+            (tmp_repo / ".docsight" / "state.json").read_text(encoding="utf-8")
         )
         assert "last_report" in state
 
@@ -530,7 +530,7 @@ class TestCliShow:
         runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
 
         # Get a doc path from mappings
-        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings_file = tmp_repo / ".docsight" / "mappings.json"
         mappings = json.loads(mappings_file.read_text(encoding="utf-8"))
         doc_path = next(iter(mappings.keys()))
 
@@ -635,13 +635,13 @@ class TestCliGraph:
     """Tests for the graph command."""
 
     def test_graph_command_creates_html(self, tmp_repo):
-        """graph command should create graph.html in .doc-updater/."""
+        """graph command should create graph.html in .docsight/."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / ".doc-updater" / "graph.html").exists()
+        assert (tmp_repo / ".docsight" / "graph.html").exists()
 
     def test_graph_command_html_contains_vis_network(self, tmp_repo):
         """graph.html should contain vis.Network reference."""
@@ -649,7 +649,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         assert "vis.Network" in content
 
     def test_graph_command_json_export(self, tmp_repo):
@@ -661,7 +661,7 @@ class TestCliGraph:
             cli, ["--repo", str(tmp_repo), "graph", "--export", "json"]
         )
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / ".doc-updater" / "graph.json").exists()
+        assert (tmp_repo / ".docsight" / "graph.json").exists()
 
     def test_graph_command_custom_output(self, tmp_repo):
         """graph -o <path> should write to the specified path."""
@@ -682,7 +682,7 @@ class TestCliGraph:
         # Do NOT run index manually
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / ".doc-updater" / "graph.html").exists()
+        assert (tmp_repo / ".docsight" / "graph.html").exists()
 
     def test_graph_zoom_default_contains_graph_data(self, tmp_repo):
         """Default graph (zoom) embeds structured graphData JSON."""
@@ -690,7 +690,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         assert "var G=" in content
         assert '"files"' in content
         assert "src/auth.py" in content
@@ -702,7 +702,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         assert "AuthManager" in content
         assert "validate_token" in content
         assert "cache_lookup" in content
@@ -715,7 +715,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         assert '"edges"' in content
         assert "CALLS" in content
 
@@ -728,7 +728,7 @@ class TestCliGraph:
             cli, ["--repo", str(tmp_repo), "graph", "--flat"]
         )
         assert result.exit_code == 0, result.output
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         # Flat graph has nodesData/edgesData, not the zoom G= variable
         assert "var nodesData" in content
         assert "var G=" not in content
@@ -739,7 +739,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".docsight" / "graph.html").read_text(encoding="utf-8")
         assert "Collapse All" in content
         assert "doubleClick" in content
 
@@ -750,7 +750,7 @@ class TestCliGraph:
 
 
 class TestCliExcludePatterns:
-    """Tests for [tool.doc-updater] exclude config integration."""
+    """Tests for [tool.docsight] exclude config integration."""
 
     def test_index_excludes_configured_paths(self, tmp_path):
         """index respects exclude patterns from pyproject.toml."""
@@ -764,7 +764,7 @@ class TestCliExcludePatterns:
 
         # Configure exclude
         (tmp_path / "pyproject.toml").write_text(
-            '[tool.doc-updater]\nexclude = ["vendor/"]\n'
+            '[tool.docsight]\nexclude = ["vendor/"]\n'
         )
 
         runner = CliRunner()
@@ -772,7 +772,7 @@ class TestCliExcludePatterns:
         result = runner.invoke(cli, ["--repo", str(tmp_path), "index"])
         assert result.exit_code == 0, result.output
 
-        index_file = tmp_path / ".doc-updater" / "index.json"
+        index_file = tmp_path / ".docsight" / "index.json"
         index = json.loads(index_file.read_text())
         names = {v["name"] for v in index.values()}
         assert "kept" in names
@@ -786,7 +786,7 @@ class TestCliExcludePatterns:
         (internal / "notes.md").write_text("# Internal\n`authenticate()`\n")
 
         (tmp_repo / "pyproject.toml").write_text(
-            '[tool.doc-updater]\nexclude = [".internal/"]\n'
+            '[tool.docsight]\nexclude = [".internal/"]\n'
         )
 
         runner = CliRunner()
@@ -795,7 +795,7 @@ class TestCliExcludePatterns:
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
         assert result.exit_code == 0, result.output
 
-        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings_file = tmp_repo / ".docsight" / "mappings.json"
         mappings = json.loads(mappings_file.read_text())
         assert not any(".internal" in k for k in mappings)
 
@@ -810,7 +810,7 @@ class TestCliExcludePatterns:
 
         # Exclude tests/ — should not affect src/ or docs/
         (tmp_path / "pyproject.toml").write_text(
-            '[tool.doc-updater]\nexclude = ["tests/"]\n'
+            '[tool.docsight]\nexclude = ["tests/"]\n'
         )
 
         runner = CliRunner()
@@ -819,7 +819,7 @@ class TestCliExcludePatterns:
         assert result.exit_code == 0, result.output
 
     def test_no_config_still_works(self, tmp_repo):
-        """Commands work normally when no [tool.doc-updater] section exists."""
+        """Commands work normally when no [tool.docsight] section exists."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
@@ -1161,7 +1161,7 @@ class TestCliDiff:
 
         # Now add an exclude pattern that hides src/cache.py
         (tmp_repo / "pyproject.toml").write_text(
-            '[tool.doc-updater]\nexclude = ["src/cache.py"]\n'
+            '[tool.docsight]\nexclude = ["src/cache.py"]\n'
         )
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
         assert result.exit_code == 0, result.output

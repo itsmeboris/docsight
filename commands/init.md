@@ -1,20 +1,20 @@
 ---
-description: Initialize doc-updater in the current repo and set the baseline
-allowed-tools: Bash(doc-updater:*)
+description: Initialize docsight in the current repo and set the baseline
+allowed-tools: Bash(docsight:*)
 ---
 
-Run doc-updater init to set up the project. This creates `.doc-updater/`, updates `.gitignore`, indexes all Python files, scans markdown docs, and stores a verified baseline.
+Run docsight init to set up the project. This creates `.docsight/`, updates `.gitignore`, indexes all Python files, scans markdown docs, and stores a verified baseline.
 
 ```bash
-doc-updater init
+docsight init
 ```
 
 After the command completes, report:
 - How many files were indexed
 - How many docs were scanned
-- That the baseline is set and `doc-updater check` is now ready to use
+- That the baseline is set and `docsight check` is now ready to use
 
 If the user wants to also install the pre-push git hook, run:
 ```bash
-doc-updater hooks install
+docsight hooks install
 ```

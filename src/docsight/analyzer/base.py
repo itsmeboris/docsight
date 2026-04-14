@@ -1,4 +1,4 @@
-"""Base data models for the doc-updater code analyzer."""
+"""Base data models for the docsight code analyzer."""
 
 from __future__ import annotations
 

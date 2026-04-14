@@ -1,15 +1,15 @@
 ---
 description: Show blast radius of changing a code element or file
 argument-hint: '<element-or-file> [--max-hops N]'
-allowed-tools: Bash(doc-updater:*)
+allowed-tools: Bash(docsight:*)
 ---
 
-Run doc-updater impact to show what would be affected by a change.
+Run docsight impact to show what would be affected by a change.
 
 The user's argument is the target: `$ARGUMENTS`
 
 ```bash
-doc-updater impact --json $ARGUMENTS
+docsight impact --json $ARGUMENTS
 ```
 
 Parse the JSON output and present:

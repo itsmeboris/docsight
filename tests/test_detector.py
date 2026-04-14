@@ -1,12 +1,12 @@
-"""Tests for doc_updater.staleness.detector."""
+"""Tests for docsight.staleness.detector."""
 
 from __future__ import annotations
 
 import pytest
 
-from doc_updater.analyzer.base import EdgeKind, ElementKind, GraphEdge
-from doc_updater.analyzer.graph import CodeGraph
-from doc_updater.staleness.detector import DocStatus, StalenessDetector, StalenessIssue
+from docsight.analyzer.base import EdgeKind, ElementKind, GraphEdge
+from docsight.analyzer.graph import CodeGraph
+from docsight.staleness.detector import DocStatus, StalenessDetector, StalenessIssue
 
 
 def _make_element(sig_hash: str, body_hash: str) -> dict:

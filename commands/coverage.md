@@ -1,21 +1,21 @@
 ---
 description: Show documentation coverage and find gaps
 argument-hint: '[--gaps] [--all-elements]'
-allowed-tools: Bash(doc-updater:*)
+allowed-tools: Bash(docsight:*)
 ---
 
-Run doc-updater coverage to analyze documentation coverage.
+Run docsight coverage to analyze documentation coverage.
 
 Raw arguments: `$ARGUMENTS`
 
 If the user asks about gaps or "where should I write docs next", add `--gaps`:
 ```bash
-doc-updater coverage --gaps --json
+docsight coverage --gaps --json
 ```
 
 Otherwise run standard coverage:
 ```bash
-doc-updater coverage --json $ARGUMENTS
+docsight coverage --json $ARGUMENTS
 ```
 
 For standard coverage, report:

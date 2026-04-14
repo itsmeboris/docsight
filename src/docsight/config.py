@@ -1,4 +1,4 @@
-"""Load doc-updater configuration from pyproject.toml."""
+"""Load docsight configuration from pyproject.toml."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 def load_config(repo: Path) -> dict:
-    """Read ``[tool.doc-updater]`` from *repo*/pyproject.toml.
+    """Read ``[tool.docsight]`` from *repo*/pyproject.toml.
 
     Returns an empty dict when the file or section is absent or when
     any intermediate value has the wrong type (e.g. ``tool = "string"``
@@ -28,7 +28,7 @@ def load_config(repo: Path) -> dict:
     tool = data.get("tool")
     if not isinstance(tool, dict):
         return {}
-    section = tool.get("doc-updater")
+    section = tool.get("docsight")
     if not isinstance(section, dict):
         return {}
     return section

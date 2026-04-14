@@ -1,4 +1,4 @@
-"""Command-line interface for doc-updater."""
+"""Command-line interface for docsight."""
 # pylint: disable=too-many-lines
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ from pathlib import Path
 import click
 import rich.console
 
-from doc_updater.analyzer.graph import CodeGraph
-from doc_updater.analyzer.python_analyzer import PythonAnalyzer
-from doc_updater.config import get_exclude_patterns, load_config, should_exclude
-from doc_updater.store.json_store import JsonStore
+from docsight.analyzer.graph import CodeGraph
+from docsight.analyzer.python_analyzer import PythonAnalyzer
+from docsight.config import get_exclude_patterns, load_config, should_exclude
+from docsight.store.json_store import JsonStore
 
 
 @click.group()
@@ -25,7 +25,7 @@ from doc_updater.store.json_store import JsonStore
 )
 @click.pass_context
 def cli(ctx: click.Context, repo: str | None) -> None:
-    """doc-updater: detect stale documentation."""
+    """docsight: detect stale documentation."""
     ctx.ensure_object(dict)
     ctx.obj["repo"] = Path(repo) if repo is not None else Path(os.getcwd())
 
@@ -39,21 +39,21 @@ def cli(ctx: click.Context, repo: str | None) -> None:
 )
 @click.pass_context
 def init(ctx: click.Context, no_baseline: bool) -> None:
-    """Initialise doc-updater and set the baseline.
+    """Initialise docsight and set the baseline.
 
-    Creates .doc-updater/, updates .gitignore, then auto-indexes,
+    Creates .docsight/, updates .gitignore, then auto-indexes,
     scans, and stores a verified baseline so the tool is immediately
     usable.  Pass --no-baseline to skip the baseline step.
     """
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
 
     # Create the store directory (idempotent).
     store_dir.mkdir(parents=True, exist_ok=True)
 
     # Add entries to .gitignore (idempotent — only add if not already present).
     gitignore = repo / ".gitignore"
-    entries = [".doc-updater/"]
+    entries = [".docsight/"]
 
     if gitignore.exists():
         existing = gitignore.read_text(encoding="utf-8")
@@ -67,7 +67,7 @@ def init(ctx: click.Context, no_baseline: bool) -> None:
         existing += "\n".join(additions) + "\n"
         gitignore.write_text(existing, encoding="utf-8")
 
-    click.echo(f"Initialized doc-updater in {store_dir}")
+    click.echo(f"Initialized docsight in {store_dir}")
 
     if no_baseline:
         return
@@ -86,29 +86,29 @@ def init(ctx: click.Context, no_baseline: bool) -> None:
     "--keep-gitignore",
     is_flag=True,
     default=False,
-    help="Do not remove the .doc-updater/ entry from .gitignore.",
+    help="Do not remove the .docsight/ entry from .gitignore.",
 )
 @click.pass_context
 def clean(ctx: click.Context, keep_gitignore: bool) -> None:
-    """Remove all doc-updater data from the repository."""
+    """Remove all docsight data from the repository."""
     import shutil
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
 
-    # Always clean .gitignore, even if .doc-updater/ was already removed
+    # Always clean .gitignore, even if .docsight/ was already removed
     if not keep_gitignore:
         gitignore = repo / ".gitignore"
         if gitignore.exists():
             lines = gitignore.read_text(encoding="utf-8").splitlines(keepends=True)
-            remove = {".doc-updater/"}
+            remove = {".docsight/"}
             filtered = [ln for ln in lines if ln.strip() not in remove]
             if len(filtered) != len(lines):
                 gitignore.write_text("".join(filtered), encoding="utf-8")
-                click.echo("Removed .doc-updater/ entry from .gitignore")
+                click.echo("Removed .docsight/ entry from .gitignore")
 
     if not store_dir.exists():
-        click.echo("Nothing to clean — .doc-updater/ does not exist.")
+        click.echo("Nothing to clean — .docsight/ does not exist.")
         return
 
     shutil.rmtree(store_dir)
@@ -121,24 +121,24 @@ def clean(ctx: click.Context, keep_gitignore: bool) -> None:
 
 _PRE_PUSH_HOOK = """\
 #!/bin/sh
-# doc-updater: fail push if docs are stale
+# docsight: fail push if docs are stale
 # Consume stdin (git sends ref data; not reading it can hang the hook)
 cat > /dev/null
-# Skip gracefully if doc-updater is not installed
-command -v doc-updater >/dev/null 2>&1 || exit 0
-doc-updater check
+# Skip gracefully if docsight is not installed
+command -v docsight >/dev/null 2>&1 || exit 0
+docsight check
 """
 
 
 @cli.group()
 def hooks() -> None:
-    """Install or remove git hooks for doc-updater."""
+    """Install or remove git hooks for docsight."""
 
 
 @hooks.command()
 @click.pass_context
 def install(ctx: click.Context) -> None:
-    """Install a pre-push hook that runs doc-updater check."""
+    """Install a pre-push hook that runs docsight check."""
     repo: Path = ctx.obj["repo"]
     hooks_dir = repo / ".git" / "hooks"
     if not hooks_dir.exists():
@@ -148,7 +148,7 @@ def install(ctx: click.Context) -> None:
     hook_path = hooks_dir / "pre-push"
     if hook_path.exists():
         existing = hook_path.read_text(encoding="utf-8")
-        if "doc-updater check" in existing:
+        if "docsight check" in existing:
             click.echo("pre-push hook already installed.")
             return
         # Append to existing hook (stdin may already be drained by
@@ -156,11 +156,11 @@ def install(ctx: click.Context) -> None:
         if not existing.endswith("\n"):
             existing += "\n"
         existing += (
-            "\n# doc-updater: fail push if docs are stale\n"
+            "\n# docsight: fail push if docs are stale\n"
             "# Consume stdin (git sends ref data; not reading it can hang the hook)\n"
             "cat > /dev/null\n"
-            "command -v doc-updater >/dev/null 2>&1 || exit 0\n"
-            "doc-updater check\n"
+            "command -v docsight >/dev/null 2>&1 || exit 0\n"
+            "docsight check\n"
         )
         hook_path.write_text(existing, encoding="utf-8")
     else:
@@ -173,7 +173,7 @@ def install(ctx: click.Context) -> None:
 @hooks.command()
 @click.pass_context
 def uninstall(ctx: click.Context) -> None:
-    """Remove the doc-updater pre-push hook."""
+    """Remove the docsight pre-push hook."""
     repo: Path = ctx.obj["repo"]
     hook_path = repo / ".git" / "hooks" / "pre-push"
     if not hook_path.exists():
@@ -181,12 +181,12 @@ def uninstall(ctx: click.Context) -> None:
         return
 
     content = hook_path.read_text(encoding="utf-8")
-    if "doc-updater check" not in content:
-        click.echo("pre-push hook does not contain doc-updater — nothing to remove.")
+    if "docsight check" not in content:
+        click.echo("pre-push hook does not contain docsight — nothing to remove.")
         return
 
-    # Remove all lines that are part of the doc-updater block
-    _block_markers = {"doc-updater", "cat > /dev/null", "Consume stdin"}
+    # Remove all lines that are part of the docsight block
+    _block_markers = {"docsight", "cat > /dev/null", "Consume stdin"}
     lines = content.splitlines(keepends=True)
     filtered = [
         ln for ln in lines
@@ -195,7 +195,7 @@ def uninstall(ctx: click.Context) -> None:
     remaining = "".join(filtered).strip()
     if remaining and remaining != "#!/bin/sh":
         hook_path.write_text(remaining + "\n", encoding="utf-8")
-        click.echo("Removed doc-updater from pre-push hook (other hooks preserved).")
+        click.echo("Removed docsight from pre-push hook (other hooks preserved).")
     else:
         hook_path.unlink()
         click.echo("Removed pre-push hook.")
@@ -212,7 +212,7 @@ def uninstall(ctx: click.Context) -> None:
 def index(ctx: click.Context, skip_errors: bool) -> None:
     """Walk the repository, analyse Python files, and build the index."""
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store_dir.mkdir(parents=True, exist_ok=True)
     store = JsonStore(store_dir)
 
@@ -275,17 +275,17 @@ def scan(ctx: click.Context) -> None:
     """Scan documentation and auto-detect code references."""
     import hashlib
 
-    from doc_updater.docs.mapper import DocMapper
-    from doc_updater.docs.scanner import DocScanner
+    from docsight.docs.mapper import DocMapper
+    from docsight.docs.scanner import DocScanner
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store = JsonStore(store_dir)
 
     # Load index
     all_elements = store.load_index()
     if not all_elements:
-        click.echo("No index found. Run 'doc-updater index' first.", err=True)
+        click.echo("No index found. Run 'docsight index' first.", err=True)
         sys.exit(1)
 
     config = load_config(repo)
@@ -365,7 +365,7 @@ def _stale_eids_from_report(last_report: dict) -> list[str]:
 def _run_index(repo: Path, store: JsonStore,
                exclude: list[str] | None = None) -> None:
     """Internal helper: run the index step with skip_errors=True."""
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     exclude = exclude or []
     analyzer = PythonAnalyzer()
     py_files = sorted(repo.rglob("*.py"))
@@ -402,10 +402,10 @@ def _run_scan(repo: Path, store: JsonStore,
     """Internal helper: run the scan step."""
     import hashlib
 
-    from doc_updater.docs.mapper import DocMapper
-    from doc_updater.docs.scanner import DocScanner
+    from docsight.docs.mapper import DocMapper
+    from docsight.docs.scanner import DocScanner
 
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     exclude = exclude or []
     all_elements = store.load_index()
     if not all_elements:
@@ -490,8 +490,8 @@ def check(
     direct_only: bool,
 ) -> None:
     """Check documentation for staleness."""
-    from doc_updater.staleness.detector import DocStatus, StalenessDetector
-    from doc_updater.staleness.reporter import (
+    from docsight.staleness.detector import DocStatus, StalenessDetector
+    from docsight.staleness.reporter import (
         has_stale,
         print_details,
         print_summary,
@@ -499,7 +499,7 @@ def check(
     )
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store_dir.mkdir(parents=True, exist_ok=True)
     store = JsonStore(store_dir)
     config = load_config(repo)
@@ -588,7 +588,7 @@ def check(
     if state_version < 2 and verified:
         click.echo(
             "Warning: baseline was created with an older format (absolute paths). "
-            "Run 'doc-updater check --baseline' to re-baseline.",
+            "Run 'docsight check --baseline' to re-baseline.",
             err=True,
         )
         # Clear verified entirely so detector returns UNVERIFIED (not false HEALTHY)
@@ -628,7 +628,7 @@ def check(
     check_report = detector.check_all()
 
     # Serialize report for storage (statuses stored as string values)
-    from doc_updater.staleness.detector import StalenessIssue
+    from docsight.staleness.detector import StalenessIssue
 
     serializable_report: dict[str, dict] = {}
     for doc_path, doc_data in check_report.items():
@@ -670,17 +670,17 @@ def check(
 @click.pass_context
 def status(ctx: click.Context) -> None:
     """Show the last staleness check summary."""
-    from doc_updater.staleness.reporter import print_summary
+    from docsight.staleness.reporter import print_summary
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store = JsonStore(store_dir)
 
     state = store.load_state()
     last_report = state.get("last_report")
 
     if last_report is None:
-        click.echo("No report found. Run 'doc-updater check' first.", err=True)
+        click.echo("No report found. Run 'docsight check' first.", err=True)
         sys.exit(1)
 
     print_summary(last_report)
@@ -712,10 +712,10 @@ def status(ctx: click.Context) -> None:
 def graph(ctx: click.Context, export_format: str, output: str | None,
           flat: bool) -> None:
     """Export the code dependency graph (semantic zoom by default)."""
-    from doc_updater.analyzer.graph import export_zoom_html
+    from docsight.analyzer.graph import export_zoom_html
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store_dir.mkdir(parents=True, exist_ok=True)
     store = JsonStore(store_dir)
     config = load_config(repo)
@@ -759,14 +759,14 @@ def graph(ctx: click.Context, export_format: str, output: str | None,
 
 @cli.command()
 @click.option("-o", "--output", type=click.Path(), default=None,
-              help="Output file path (default: .doc-updater/report.html).")
+              help="Output file path (default: .docsight/report.html).")
 @click.pass_context
 def report(ctx: click.Context, output: str | None) -> None:
     """Generate an interactive HTML report with file-level drill-down."""
-    from doc_updater.report import generate_html_report
+    from docsight.report import generate_html_report
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store = JsonStore(store_dir)
     config = load_config(repo)
     exclude = get_exclude_patterns(config)
@@ -791,17 +791,17 @@ def report(ctx: click.Context, output: str | None) -> None:
 @click.pass_context
 def show(ctx: click.Context, doc: str) -> None:
     """Show staleness details for a specific documentation file."""
-    from doc_updater.staleness.reporter import print_doc_tree
+    from docsight.staleness.reporter import print_doc_tree
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store = JsonStore(store_dir)
 
     state = store.load_state()
     last_report = state.get("last_report")
 
     if last_report is None:
-        click.echo("No report found. Run 'doc-updater check' first.", err=True)
+        click.echo("No report found. Run 'docsight check' first.", err=True)
         sys.exit(1)
 
     # Find the doc in the report (support partial path matching)
@@ -856,7 +856,7 @@ def coverage(ctx: click.Context, output_json: bool, include_private: bool,
     from rich.table import Table
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store = JsonStore(store_dir)
     config = load_config(repo)
     exclude = get_exclude_patterns(config)
@@ -1058,7 +1058,7 @@ def impact(ctx: click.Context, target: str, output_json: bool,
     file path (e.g. src/auth.py — expands to all elements in that file).
     """
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store_dir.mkdir(parents=True, exist_ok=True)
     store = JsonStore(store_dir)
     config = load_config(repo)
@@ -1194,7 +1194,7 @@ def diff_cmd(ctx: click.Context, base: str | None, output_json: bool,
     import subprocess
 
     repo: Path = ctx.obj["repo"]
-    store_dir = repo / ".doc-updater"
+    store_dir = repo / ".docsight"
     store_dir.mkdir(parents=True, exist_ok=True)
     store = JsonStore(store_dir)
     config = load_config(repo)

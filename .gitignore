@@ -7,11 +7,11 @@ __pycache__/
 dist/
 build/
 
-# doc-updater data
+# docsight data
 
 # IDE / tool state
 .cursor/
 .claude/
 .playwright-mcp/
 *.png
-.doc-updater/
+.docsight/

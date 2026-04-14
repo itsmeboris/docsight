@@ -1,7 +1,7 @@
-"""Tests for doc_updater.analyzer.base data models."""
+"""Tests for docsight.analyzer.base data models."""
 
 import pytest
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeElement,
     EdgeKind,
     ElementKind,
@@ -113,7 +113,7 @@ class TestCodeElement:
 
 class TestImportInfo:
     def test_basic_creation(self):
-        from doc_updater.analyzer.base import ImportInfo
+        from docsight.analyzer.base import ImportInfo
 
         imp = ImportInfo(
             module="os.path",

@@ -1,15 +1,15 @@
 ---
 description: Show which docs need updating based on code changes (vs baseline or git ref)
 argument-hint: '[--base REF]'
-allowed-tools: Bash(doc-updater:*)
+allowed-tools: Bash(docsight:*)
 ---
 
-Run doc-updater diff to see what docs need updating based on code changes.
+Run docsight diff to see what docs need updating based on code changes.
 
 Raw arguments: `$ARGUMENTS`
 
 ```bash
-doc-updater diff --json $ARGUMENTS
+docsight diff --json $ARGUMENTS
 ```
 
 Parse the JSON output and present:

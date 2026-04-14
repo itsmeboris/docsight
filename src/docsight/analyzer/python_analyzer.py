@@ -7,7 +7,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 
-from doc_updater.analyzer.base import (
+from docsight.analyzer.base import (
     CodeAnalyzer,
     CodeElement,
     EdgeKind,
