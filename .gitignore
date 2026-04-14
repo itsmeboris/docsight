@@ -8,12 +8,10 @@ dist/
 build/
 
 # doc-updater data
-.doc-updater/
-graph.html
-graph.json
 
 # IDE / tool state
 .cursor/
 .claude/
 .playwright-mcp/
 *.png
+.doc-updater/

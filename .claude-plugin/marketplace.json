@@ -1,0 +1,21 @@
+{
+  "name": "doc-updater",
+  "owner": {
+    "name": "doc-updater"
+  },
+  "metadata": {
+    "description": "Detect stale documentation by tracking code-to-doc relationships.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "doc-updater",
+      "description": "Detect stale docs, analyze impact, find coverage gaps.",
+      "version": "0.1.0",
+      "author": {
+        "name": "doc-updater"
+      },
+      "source": "."
+    }
+  ]
+}

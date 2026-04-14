@@ -49,16 +49,19 @@ pip install -e .
 ```bash
 cd your-python-project
 
-# Initialize (creates .doc-updater/, updates .gitignore)
+# Initialize (creates .doc-updater/, indexes code, sets baseline)
 doc-updater init
 
-# Set current state as the "verified" baseline
-doc-updater check --baseline
+# Optionally install pre-push git hook
+doc-updater hooks install
 
 # ... make code changes ...
 
 # Check which docs are now stale
 doc-updater check
+
+# See what changed and which docs need updating
+doc-updater diff
 ```
 
 Example output:
@@ -134,7 +137,9 @@ If a documented function is renamed or deleted, it's flagged as `reference_lost`
 
 | Command | Description |
 |---------|-------------|
-| `doc-updater init` | Initialize in a repo (creates `.doc-updater/`, updates `.gitignore`) |
+| `doc-updater init` | Initialize, index, scan, and baseline (one command to start) |
+| `doc-updater hooks install` | Install pre-push git hook that runs `check` |
+| `doc-updater hooks uninstall` | Remove the pre-push hook |
 | `doc-updater index` | Parse Python files, build code index + dependency graph |
 | `doc-updater scan` | Scan markdown docs, auto-detect code references |
 | `doc-updater check --baseline` | Set current state as verified baseline |
@@ -142,7 +147,11 @@ If a documented function is renamed or deleted, it's flagged as `reference_lost`
 | `doc-updater check --json` | Machine-readable JSON output (for CI) |
 | `doc-updater status` | Show last check summary |
 | `doc-updater show <doc>` | Detailed tree view for one doc |
-| `doc-updater graph` | Export interactive HTML dependency graph |
+| `doc-updater impact <target>` | Show blast radius of changing an element or file |
+| `doc-updater diff` | Show which docs need updating based on code changes |
+| `doc-updater graph` | Export semantic-zoom dependency graph (file → class → method) |
+| `doc-updater coverage` | Show doc coverage (public API only by default) |
+| `doc-updater report` | Generate interactive HTML report |
 | `doc-updater clean` | Remove all doc-updater data from the repo |
 
 ### Key flags
@@ -151,9 +160,14 @@ If a documented function is renamed or deleted, it's flagged as `reference_lost`
 doc-updater check --json              # JSON output for CI
 doc-updater check --direct-only       # Skip transitive checks
 doc-updater check --max-hops 5        # Increase transitive depth (default: 3)
-doc-updater index --skip-errors       # Continue past syntax errors
-doc-updater graph --export json       # Export graph as JSON instead of HTML
-doc-updater graph -o /tmp/graph.html  # Custom output path
+doc-updater impact src/auth.py        # Blast radius for all elements in a file
+doc-updater impact cache_lookup --json # Impact analysis as JSON
+doc-updater diff                      # Changes vs stored baseline
+doc-updater diff --base main          # Changes vs a git ref
+doc-updater coverage --gaps           # Files with zero documented public API
+doc-updater coverage --all-elements   # Count every element (not just public API)
+doc-updater graph --flat              # Old flat vis.js layout
+doc-updater graph --export json       # Export graph as JSON
 doc-updater clean --keep-gitignore    # Remove data but keep .gitignore entry
 ```
 
@@ -242,6 +256,22 @@ The `--json` flag produces machine-readable output:
 
 ## Configuration
 
+### Exclude patterns
+
+Add a `[tool.doc-updater]` section to `pyproject.toml` to exclude paths from indexing and scanning:
+
+```toml
+[tool.doc-updater]
+exclude = ["tests/", ".claude/", ".cursor/", "vendor/"]
+```
+
+Patterns support:
+- **Directory prefixes**: `"tests/"` excludes everything under `tests/`
+- **Glob/fnmatch**: `"*.generated.py"` excludes generated files
+- **Bare names**: `"vendor"` matches `vendor/` as a directory prefix
+
+### Data files
+
 doc-updater stores all data in `.doc-updater/` (auto-added to `.gitignore`):
 
 | File | Purpose |
@@ -251,6 +281,12 @@ doc-updater stores all data in `.doc-updater/` (auto-added to `.gitignore`):
 | `file_analyses.json` | Per-file analysis results |
 | `mappings.json` | Doc-to-code reference mappings |
 | `state.json` | Verified baseline + last report |
+
+### Coverage modes
+
+By default, `coverage` counts only **public API elements** — classes and module-level functions. Methods are considered covered by their parent class's documentation status.
+
+Use `--all-elements` to count every element (classes, functions, and methods).
 
 ### Staleness thresholds
 
@@ -285,15 +321,32 @@ doc-updater graph --export json -o graph.json
 
 ---
 
-## Claude Code Integration
+## Claude Code Plugin
 
-A `/doc-check` skill is included at `claude-code/doc-check.md`. It lets you check doc staleness interactively inside Claude Code:
+doc-updater ships as a Claude Code plugin. Install it to get slash commands in any conversation:
 
+```bash
+claude plugin add /path/to/doc-updater
 ```
-> /doc-check
-```
 
-The skill runs `doc-updater check --json`, interprets results, and suggests specific fixes for stale docs.
+### Available commands
+
+| Command | What it does |
+|---------|-------------|
+| `/doc-updater:init` | Initialize and baseline the repo |
+| `/doc-updater:check` | Check staleness, suggest fixes for stale docs |
+| `/doc-updater:impact <target>` | Show blast radius of changing an element or file |
+| `/doc-updater:diff [--base REF]` | Show which docs need updating for your changes |
+| `/doc-updater:coverage [--gaps]` | Coverage stats or find where to write docs next |
+| `/doc-updater:graph` | Generate and open the semantic-zoom dependency graph |
+| `/doc-updater:report` | Generate and open the HTML report |
+
+### Git hooks
+
+```bash
+doc-updater hooks install    # pre-push: fails if docs are stale
+doc-updater hooks uninstall  # remove the hook
+```
 
 ---
 
@@ -310,7 +363,7 @@ pip install -e ".[dev]"
 ### Test
 
 ```bash
-pytest -v           # 241 tests, 96% coverage
+pytest -v           # 316 tests
 pylint src/         # Target: 10.00/10
 pylint tests/       # Target: clean
 ```
@@ -322,7 +375,9 @@ pylint tests/       # Target: clean
 
 ```
 src/doc_updater/
-├── cli.py                  # Click CLI (init, index, scan, check, status, show, graph, clean)
+├── cli.py                  # Click CLI (init, index, scan, check, status, show, graph, coverage, report, clean)
+├── config.py               # Load [tool.doc-updater] from pyproject.toml, exclude patterns
+├── report.py               # Hierarchical HTML report generator
 ├── analyzer/
 │   ├── base.py             # Data models (CodeElement, Parameter, GraphEdge, etc.)
 │   ├── python_analyzer.py  # Python AST visitor with three-tier hashing

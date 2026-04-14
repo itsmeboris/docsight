@@ -7,7 +7,7 @@
 
 ## Build & Test
 - Install: `pip install -e ".[dev]"`
-- Test: `pytest -v` (246 tests, target 95%+ coverage)
+- Test: `pytest -v` (316 tests, target 95%+ coverage)
 - Lint: `pylint src/doc_updater/` and `pylint tests/` (target 10.00/10)
 - All pylint config is in `pyproject.toml` under `[tool.pylint.*]`
 - All test classes and methods must have docstrings (pylint enforces this)
@@ -23,15 +23,30 @@
 - State format_version=2 uses relative paths; version <2 is treated as UNVERIFIED to prevent false-green results
 - `check` command auto-runs index (skip_errors=True) + scan before detection
 - Reference-lost detection compares previous baseline refs against current scan results
+- All commands that walk files (`index`, `scan`, `check`, `graph`, `report`, `coverage`) must respect exclude patterns from `[tool.doc-updater]` in pyproject.toml
+- Default coverage metric counts only public API elements (classes + module-level functions); methods are covered by their parent class — use `--all-elements` for full count
+- `config.py` must never crash on malformed pyproject.toml values — every intermediate value (`tool`, `doc-updater`, `exclude`) must be type-checked before use
 
 ## Conventions
 - `visit_Assign`/`visit_Call` method names follow ast.NodeVisitor convention (pylint disabled per-method)
-- HTML graph export must html.escape all user-controlled content in tooltips
+- HTML graph export must html.escape all user-controlled content in tooltips; JSON embedded in `<script>` tags must have `</` escaped to `<\/` to prevent script-tag breakout
+- When embedding JSON via template replacement, inject the data blob LAST so placeholder strings inside user data are never re-processed
 - max_hops flag must be enforced in both baseline closure and detection
 - `analyze_file()` accepts optional `repo_root` param for relative path generation
 - `clean` command: gitignore cleanup runs BEFORE rmtree to avoid stale state on partial failure
 - CLI commands that add `doc-updater init` must also consider `doc-updater clean` for symmetry
-- `init` adds `.doc-updater/`, `graph.html`, `graph.json`, `report.html` to `.gitignore`
+- `init` adds only `.doc-updater/` to `.gitignore` — all generated files live inside it
 - Prefer lightweight hierarchical HTML (`report` command) over heavy vis.js graph for visualization
-- vis.js graph with 400+ nodes is unusable — user wants file-level view with drill-down, not flat node dump
-- Generated HTML files (graph.html, report.html) go to repo root and must be gitignored
+- vis.js graph with 400+ nodes is unusable — semantic zoom (file → class → method) is the default; `--flat` for old behavior
+- Semantic zoom graph must distinguish `stale` (red) from `possibly_stale` (amber) — never lump both as stale
+- MODULE element IDs must be mapped to their file node in the JS graph so IMPORTS edges resolve correctly
+- Generated files (graph.html, report.html, graph.json) default to `.doc-updater/` so cleanup is just `doc-updater clean`
+- Internal helpers `_run_index` and `_run_scan` accept an `exclude` kwarg; all callers must pass it
+- Config reading from pyproject.toml is in `config.py` (`load_config`, `get_exclude_patterns`, `should_exclude`)
+- `diff` deleted-element detection must use exclude patterns (not file existence) to suppress false positives — files that fail to parse must still flag their missing elements
+- `impact` command uses reverse BFS (`impact_radius`) and cross-references mappings to find affected docs
+- `coverage --gaps` finds files with zero documented public API, sorted by dependency weight
+- `init` auto-runs index + scan + baseline by default; use `--no-baseline` to skip
+- Pre-push hook must drain stdin (`cat > /dev/null`) and guard with `command -v doc-updater` for portability
+- `diff --base REF` must use three-dot merge-base syntax (`REF...HEAD`) for correct PR semantics
+- Claude Code plugin lives in `.claude-plugin/` + `commands/` following the codex-plugin-cc pattern

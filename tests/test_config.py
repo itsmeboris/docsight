@@ -1,0 +1,121 @@
+"""Tests for doc_updater.config — exclude patterns and config loading."""
+
+from doc_updater.config import get_exclude_patterns, load_config, should_exclude
+
+
+class TestLoadConfig:
+    """Tests for loading config from pyproject.toml."""
+
+    def test_returns_empty_dict_when_no_pyproject(self, tmp_path):
+        """Returns {} when pyproject.toml does not exist."""
+        assert load_config(tmp_path) == {}
+
+    def test_returns_empty_dict_when_no_tool_section(self, tmp_path):
+        """Returns {} when pyproject.toml has no [tool.doc-updater]."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "foo"\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path) == {}
+
+    def test_returns_config_dict(self, tmp_path):
+        """Returns the [tool.doc-updater] section."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.doc-updater]\nexclude = [".claude/", "tests/"]\n',
+            encoding="utf-8",
+        )
+        cfg = load_config(tmp_path)
+        assert cfg["exclude"] == [".claude/", "tests/"]
+
+    def test_handles_malformed_toml(self, tmp_path):
+        """Returns {} on malformed TOML."""
+        (tmp_path / "pyproject.toml").write_text("[[invalid", encoding="utf-8")
+        assert load_config(tmp_path) == {}
+
+    def test_handles_tool_as_non_table(self, tmp_path):
+        """Returns {} when [tool] is not a table (e.g. tool = 'string')."""
+        (tmp_path / "pyproject.toml").write_text(
+            'tool = "not a table"\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path) == {}
+
+    def test_handles_doc_updater_as_non_table(self, tmp_path):
+        """Returns {} when doc-updater value is not a table."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool]\ndoc-updater = "not a table"\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path) == {}
+
+    def test_handles_doc_updater_as_integer(self, tmp_path):
+        """Returns {} when doc-updater value is an integer."""
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool]\ndoc-updater = 42\n', encoding="utf-8"
+        )
+        assert load_config(tmp_path) == {}
+
+
+class TestGetExcludePatterns:
+    """Tests for get_exclude_patterns."""
+
+    def test_returns_list_from_config(self):
+        """Extracts the exclude list."""
+        assert get_exclude_patterns({"exclude": ["a/", "b/"]}) == ["a/", "b/"]
+
+    def test_returns_empty_list_when_absent(self):
+        """Returns [] when exclude is not set."""
+        assert not get_exclude_patterns({})
+
+    def test_wraps_string_in_list(self):
+        """Wraps a single string value into a list."""
+        assert get_exclude_patterns({"exclude": "tests/"}) == ["tests/"]
+
+    def test_ignores_non_list_non_string_value(self):
+        """Returns [] when exclude is an int, bool, or dict."""
+        assert not get_exclude_patterns({"exclude": 42})
+        assert not get_exclude_patterns({"exclude": True})
+        assert not get_exclude_patterns({"exclude": {"bad": "value"}})
+
+    def test_drops_non_string_items_from_list(self):
+        """Silently drops non-string entries from a list."""
+        result = get_exclude_patterns({"exclude": ["tests/", 42, None, ".claude/"]})
+        assert result == ["tests/", ".claude/"]
+
+
+class TestShouldExclude:
+    """Tests for should_exclude path matching."""
+
+    def test_directory_prefix_match(self):
+        """Patterns ending with / match as directory prefixes."""
+        assert should_exclude(".claude/foo.py", [".claude/"])
+        assert should_exclude("tests/test_foo.py", ["tests/"])
+
+    def test_no_match(self):
+        """Returns False when no pattern matches."""
+        assert not should_exclude("src/main.py", [".claude/", "tests/"])
+
+    def test_glob_pattern(self):
+        """Glob patterns like *.generated.py match filenames."""
+        assert should_exclude("src/schema.generated.py", ["*.generated.py"])
+
+    def test_fnmatch_full_path(self):
+        """fnmatch works on the full relative path."""
+        assert should_exclude("vendor/lib/util.py", ["vendor/*"])
+
+    def test_nested_directory_prefix(self):
+        """Nested directory prefix matching."""
+        assert should_exclude(".claude/skills/foo.md", [".claude/"])
+        assert not should_exclude("src/.claude_compat.py", [".claude/"])
+
+    def test_directory_without_trailing_slash(self):
+        """Directory name without trailing slash matches as prefix."""
+        assert should_exclude("worktrees/branch/file.py", ["worktrees"])
+
+    def test_multiple_patterns(self):
+        """Returns True if any pattern matches."""
+        patterns = [".claude/", "tests/", "*.bak"]
+        assert should_exclude("tests/test_x.py", patterns)
+        assert should_exclude("data.bak", patterns)
+        assert not should_exclude("src/main.py", patterns)
+
+    def test_empty_patterns(self):
+        """Returns False when patterns list is empty."""
+        assert not should_exclude("anything.py", [])

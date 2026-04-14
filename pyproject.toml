@@ -38,6 +38,9 @@ source = ["doc_updater"]
 line-length = 88
 target-version = ["py312"]
 
+[tool.doc-updater]
+exclude = ["tests/", ".claude/", ".cursor/"]
+
 [tool.pylint.messages_control]
 disable = [
     "too-many-instance-attributes",

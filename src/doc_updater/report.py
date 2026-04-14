@@ -135,16 +135,19 @@ def generate_html_report(
             f'</div>\n'
         )
 
-    # Stats
-    total_elems = sum(len(v) for v in files.values())
+    # Stats — coverage counts only public API (classes + module-level functions)
     total_stale = sum(1 for f in files.values() for e in f if e["is_stale"])
-    total_undoc = sum(
-        1 for f in files.values()
-        for e in f
-        if not e["is_documented"] and not e["name"].startswith("_")
-    )
-    total_doc = total_elems - total_undoc
-    cov_pct = (total_doc / total_elems * 100) if total_elems else 100
+    api_elems = [
+        e for f in files.values() for e in f
+        if not e["name"].startswith("_")
+        and (e["kind"] == "CLASS"
+             or (e["kind"] == "FUNCTION" and e["parent"] is None))
+    ]
+    total_api = len(api_elems)
+    total_undoc = sum(1 for e in api_elems if not e["is_documented"])
+    total_doc = total_api - total_undoc
+    cov_pct = (total_doc / total_api * 100) if total_api else 100
+    total_elems = sum(len(v) for v in files.values())
 
     html = _HTML_TEMPLATE.format(
         n_files=len(files),

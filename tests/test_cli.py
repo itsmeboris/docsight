@@ -1,4 +1,5 @@
 """Tests for doc_updater.cli."""
+# pylint: disable=too-many-lines
 
 import json
 
@@ -77,11 +78,109 @@ class TestCliInit:
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         content = gitignore.read_text(encoding="utf-8")
-        # Each entry should appear on its own line after the existing content
+        # .doc-updater/ entry should appear after existing content
         assert ".doc-updater/" in content
-        assert "graph.html" in content
-        assert "graph.json" in content
         assert content.startswith("*.pyc\n")
+
+    def test_init_auto_baselines(self, tmp_repo):
+        """init auto-runs index + scan + baseline so check works immediately."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        assert result.exit_code == 0, result.output
+        assert "Baseline" in result.output
+        # state.json should have verified entries
+        state = json.loads(
+            (tmp_repo / ".doc-updater" / "state.json").read_text()
+        )
+        assert "verified" in state
+        assert len(state["verified"]) > 0
+
+    def test_init_no_baseline_flag(self, tmp_path):
+        """init --no-baseline skips the baseline step."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "init", "--no-baseline"])
+        assert result.exit_code == 0, result.output
+        assert "Baseline" not in result.output
+        assert (tmp_path / ".doc-updater").is_dir()
+
+
+# ---------------------------------------------------------------------------
+# hooks command
+# ---------------------------------------------------------------------------
+
+
+class TestCliHooks:
+    """Tests for the hooks install/uninstall commands."""
+
+    def test_hooks_install_creates_pre_push(self, tmp_repo):
+        """hooks install creates a pre-push hook with stdin drain and guard."""
+        (tmp_repo / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
+        assert result.exit_code == 0, result.output
+        hook = tmp_repo / ".git" / "hooks" / "pre-push"
+        assert hook.exists()
+        content = hook.read_text()
+        assert "doc-updater check" in content
+        # Must drain stdin so git doesn't hang
+        assert "cat > /dev/null" in content
+        # Must guard against doc-updater not being installed
+        assert "command -v doc-updater" in content
+
+    def test_hooks_install_idempotent(self, tmp_repo):
+        """hooks install is idempotent — does not duplicate."""
+        (tmp_repo / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
+        hook = tmp_repo / ".git" / "hooks" / "pre-push"
+        content = hook.read_text()
+        assert content.count("doc-updater check") == 1
+
+    def test_hooks_install_appends_to_existing(self, tmp_repo):
+        """hooks install appends to an existing pre-push hook."""
+        hooks_dir = tmp_repo / ".git" / "hooks"
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        (hooks_dir / "pre-push").write_text("#!/bin/sh\necho 'existing'\n")
+        (hooks_dir / "pre-push").chmod(0o755)
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
+        content = (hooks_dir / "pre-push").read_text()
+        assert "existing" in content
+        assert "doc-updater check" in content
+        # Appended block must also drain stdin and guard
+        assert "cat > /dev/null" in content
+        assert "command -v doc-updater" in content
+
+    def test_hooks_uninstall_removes_hook(self, tmp_repo):
+        """hooks uninstall removes the doc-updater pre-push hook."""
+        (tmp_repo / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "install"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "uninstall"])
+        assert result.exit_code == 0, result.output
+        assert not (tmp_repo / ".git" / "hooks" / "pre-push").exists()
+
+    def test_hooks_uninstall_preserves_other_hooks(self, tmp_repo):
+        """hooks uninstall preserves non-doc-updater lines in pre-push."""
+        hooks_dir = tmp_repo / ".git" / "hooks"
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        (hooks_dir / "pre-push").write_text(
+            "#!/bin/sh\necho 'other tool'\n# doc-updater: fail push if docs are stale\ndoc-updater check\n"
+        )
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "uninstall"])
+        content = (hooks_dir / "pre-push").read_text()
+        assert "other tool" in content
+        assert "doc-updater" not in content
+
+    def test_hooks_uninstall_noop_when_missing(self, tmp_repo):
+        """hooks uninstall is safe when no pre-push hook exists."""
+        (tmp_repo / ".git" / "hooks").mkdir(parents=True, exist_ok=True)
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "hooks", "uninstall"])
+        assert result.exit_code == 0
 
 
 # ---------------------------------------------------------------------------
@@ -107,12 +206,9 @@ class TestCliClean:
         runner.invoke(cli, ["--repo", str(tmp_path), "init"])
         gi = (tmp_path / ".gitignore").read_text()
         assert ".doc-updater/" in gi
-        assert "graph.html" in gi
         runner.invoke(cli, ["--repo", str(tmp_path), "clean"])
         content = (tmp_path / ".gitignore").read_text()
         assert ".doc-updater/" not in content
-        assert "graph.html" not in content
-        assert "graph.json" not in content
 
     def test_clean_keep_gitignore(self, tmp_path):
         """clean --keep-gitignore preserves the .gitignore entry."""
@@ -232,7 +328,7 @@ class TestCliScan:
     def test_scan_requires_index(self, tmp_repo):
         """scan exits non-zero when no index has been built yet."""
         runner = CliRunner()
-        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init", "--no-baseline"])
         # Do NOT run index first
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
         assert result.exit_code != 0
@@ -405,7 +501,7 @@ class TestCliStatus:
     def test_status_fails_without_report(self, tmp_repo):
         """status should fail if no last_report in state."""
         runner = CliRunner()
-        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init", "--no-baseline"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "status"])
         assert result.exit_code != 0
 
@@ -525,7 +621,7 @@ class TestCliCoverage:
     def test_show_fails_without_report(self, tmp_repo):
         """show should fail if no last_report."""
         runner = CliRunner()
-        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init", "--no-baseline"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "show", "docs/auth-guide.md"])
         assert result.exit_code != 0
 
@@ -539,13 +635,13 @@ class TestCliGraph:
     """Tests for the graph command."""
 
     def test_graph_command_creates_html(self, tmp_repo):
-        """graph command should create graph.html in the repo root."""
+        """graph command should create graph.html in .doc-updater/."""
         runner = CliRunner()
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / "graph.html").exists()
+        assert (tmp_repo / ".doc-updater" / "graph.html").exists()
 
     def test_graph_command_html_contains_vis_network(self, tmp_repo):
         """graph.html should contain vis.Network reference."""
@@ -553,7 +649,7 @@ class TestCliGraph:
         runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
         runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
-        content = (tmp_repo / "graph.html").read_text(encoding="utf-8")
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
         assert "vis.Network" in content
 
     def test_graph_command_json_export(self, tmp_repo):
@@ -565,7 +661,7 @@ class TestCliGraph:
             cli, ["--repo", str(tmp_repo), "graph", "--export", "json"]
         )
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / "graph.json").exists()
+        assert (tmp_repo / ".doc-updater" / "graph.json").exists()
 
     def test_graph_command_custom_output(self, tmp_repo):
         """graph -o <path> should write to the specified path."""
@@ -586,4 +682,506 @@ class TestCliGraph:
         # Do NOT run index manually
         result = runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
         assert result.exit_code == 0, result.output
-        assert (tmp_repo / "graph.html").exists()
+        assert (tmp_repo / ".doc-updater" / "graph.html").exists()
+
+    def test_graph_zoom_default_contains_graph_data(self, tmp_repo):
+        """Default graph (zoom) embeds structured graphData JSON."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        assert "var G=" in content
+        assert '"files"' in content
+        assert "src/auth.py" in content
+        assert "src/cache.py" in content
+
+    def test_graph_zoom_contains_elements(self, tmp_repo):
+        """Zoom graph data includes element names and kinds."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        assert "AuthManager" in content
+        assert "validate_token" in content
+        assert "cache_lookup" in content
+        assert '"CLASS"' in content
+        assert '"METHOD"' in content
+
+    def test_graph_zoom_contains_edges(self, tmp_repo):
+        """Zoom graph data includes dependency edges."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        assert '"edges"' in content
+        assert "CALLS" in content
+
+    def test_graph_flat_flag(self, tmp_repo):
+        """graph --flat uses the old flat vis.js layout."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "graph", "--flat"]
+        )
+        assert result.exit_code == 0, result.output
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        # Flat graph has nodesData/edgesData, not the zoom G= variable
+        assert "var nodesData" in content
+        assert "var G=" not in content
+
+    def test_graph_zoom_has_expand_collapse_ui(self, tmp_repo):
+        """Zoom graph has Collapse All button and double-click handler."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "graph"])
+        content = (tmp_repo / ".doc-updater" / "graph.html").read_text(encoding="utf-8")
+        assert "Collapse All" in content
+        assert "doubleClick" in content
+
+
+# ---------------------------------------------------------------------------
+# exclude patterns
+# ---------------------------------------------------------------------------
+
+
+class TestCliExcludePatterns:
+    """Tests for [tool.doc-updater] exclude config integration."""
+
+    def test_index_excludes_configured_paths(self, tmp_path):
+        """index respects exclude patterns from pyproject.toml."""
+        # Create two Python files — one in excluded dir
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "keep.py").write_text("def kept(): pass\n")
+        excluded = tmp_path / "vendor"
+        excluded.mkdir()
+        (excluded / "lib.py").write_text("def vendored(): pass\n")
+
+        # Configure exclude
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.doc-updater]\nexclude = ["vendor/"]\n'
+        )
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        assert result.exit_code == 0, result.output
+
+        index_file = tmp_path / ".doc-updater" / "index.json"
+        index = json.loads(index_file.read_text())
+        names = {v["name"] for v in index.values()}
+        assert "kept" in names
+        assert "vendored" not in names
+
+    def test_scan_excludes_configured_docs(self, tmp_repo):
+        """scan excludes markdown files matching exclude patterns."""
+        # Add an excluded markdown file
+        internal = tmp_repo / ".internal"
+        internal.mkdir()
+        (internal / "notes.md").write_text("# Internal\n`authenticate()`\n")
+
+        (tmp_repo / "pyproject.toml").write_text(
+            '[tool.doc-updater]\nexclude = [".internal/"]\n'
+        )
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "scan"])
+        assert result.exit_code == 0, result.output
+
+        mappings_file = tmp_repo / ".doc-updater" / "mappings.json"
+        mappings = json.loads(mappings_file.read_text())
+        assert not any(".internal" in k for k in mappings)
+
+    def test_check_respects_exclude(self, tmp_path):
+        """check command uses exclude patterns during auto-index/scan."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "app.py").write_text("def main(): pass\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text("# Guide\nUse `main()` to start.\n")
+
+        # Exclude tests/ — should not affect src/ or docs/
+        (tmp_path / "pyproject.toml").write_text(
+            '[tool.doc-updater]\nexclude = ["tests/"]\n'
+        )
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "check", "--baseline"])
+        assert result.exit_code == 0, result.output
+
+    def test_no_config_still_works(self, tmp_repo):
+        """Commands work normally when no [tool.doc-updater] section exists."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "index"])
+        assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# smarter coverage
+# ---------------------------------------------------------------------------
+
+
+class TestCliSmartCoverage:
+    """Tests for API-only coverage (default) vs --all-elements."""
+
+    def test_default_coverage_only_counts_api(self, tmp_path):
+        """Default coverage counts classes + module-level functions, not methods."""
+        src = tmp_path / "mod.py"
+        src.write_text(
+            "class Foo:\n"
+            "    def bar(self): pass\n"
+            "    def baz(self): pass\n"
+            "def top_func(): pass\n"
+        )
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text("# Guide\nUse `Foo` and `top_func()`.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "coverage", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # API = Foo + top_func = 2; methods bar/baz excluded
+        assert data["total"] == 2
+        assert data["mode"] == "api"
+
+    def test_all_elements_flag_counts_everything(self, tmp_path):
+        """--all-elements counts methods too."""
+        src = tmp_path / "mod.py"
+        src.write_text(
+            "class Foo:\n"
+            "    def bar(self): pass\n"
+            "    def baz(self): pass\n"
+            "def top_func(): pass\n"
+        )
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text("# Guide\nUse `Foo`.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--json", "--all-elements"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # All = Foo + bar + baz + top_func = 4
+        assert data["total"] == 4
+        assert data["mode"] == "all"
+
+    def test_coverage_label_in_text_output(self, tmp_path):
+        """Default text output says 'public API elements'."""
+        src = tmp_path / "mod.py"
+        src.write_text("def hello(): pass\n")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(cli, ["--repo", str(tmp_path), "coverage"])
+        assert result.exit_code == 0
+        assert "public API" in result.output
+
+
+# ---------------------------------------------------------------------------
+# impact command
+# ---------------------------------------------------------------------------
+
+
+class TestCliImpact:
+    """Tests for the impact command."""
+
+    def test_impact_by_element_id(self, tmp_repo):
+        """impact with an element ID shows affected elements."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        # validate_token calls cache_lookup, so changing cache_lookup
+        # should show validate_token as affected
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "impact", "cache_lookup"]
+        )
+        assert result.exit_code == 0, result.output
+
+    def test_impact_by_file_path(self, tmp_repo):
+        """impact with a file path expands to all elements in that file."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "impact", "src/cache.py"]
+        )
+        assert result.exit_code == 0, result.output
+
+    def test_impact_json_output(self, tmp_repo):
+        """impact --json returns valid JSON with expected keys."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "impact", "--json", "cache_lookup"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert "seed_elements" in data
+        assert "affected_elements" in data
+        assert "affected_docs" in data
+
+    def test_impact_shows_affected_docs(self, tmp_repo):
+        """impact shows docs that reference affected elements."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "impact", "--json", "cache_lookup"]
+        )
+        data = json.loads(result.output)
+        # cache_lookup is referenced in cache-guide.md directly
+        doc_paths = [d["doc"] for d in data["affected_docs"]]
+        assert any("cache" in d for d in doc_paths)
+
+    def test_impact_unknown_target(self, tmp_repo):
+        """impact with a non-existent target exits with error."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_repo), "impact", "nonexistent_thing"]
+        )
+        assert result.exit_code != 0
+
+    def test_impact_isolated_element(self, tmp_path):
+        """impact on an element with no dependents reports 'isolated'."""
+        (tmp_path / "solo.py").write_text("def lonely(): pass\n")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "impact", "lonely"]
+        )
+        assert result.exit_code == 0
+        assert "isolated" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# coverage --gaps
+# ---------------------------------------------------------------------------
+
+
+class TestCliCoverageGaps:
+    """Tests for the coverage --gaps flag."""
+
+    def test_gaps_finds_undocumented_files(self, tmp_path):
+        """--gaps reports files with zero documented public API."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "documented.py").write_text("class Foo: pass\n")
+        (src / "undocumented.py").write_text("class Bar: pass\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text("# Guide\nUse `Foo`.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--gaps", "--json"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        gap_files = [g["file"] for g in data["gap_files"]]
+        assert any("undocumented" in f for f in gap_files)
+        assert not any("documented.py" == f.split("/")[-1] for f in gap_files)
+
+    def test_gaps_no_gaps(self, tmp_path):
+        """--gaps reports no gaps when all files have documented API."""
+        (tmp_path / "mod.py").write_text("class Foo: pass\n")
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "guide.md").write_text("# Guide\nUse `Foo`.\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--gaps"]
+        )
+        assert result.exit_code == 0
+        assert "no coverage gaps" in result.output.lower()
+
+    def test_gaps_json_structure(self, tmp_path):
+        """--gaps --json returns expected keys."""
+        (tmp_path / "mod.py").write_text("def f(): pass\n")
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--gaps", "--json"]
+        )
+        data = json.loads(result.output)
+        assert "gap_files" in data
+        assert "total_gap_files" in data
+        assert "total_gap_elements" in data
+
+    def test_gaps_sorted_by_dependency_weight(self, tmp_path):
+        """Gap files are sorted by depended_on_by (most first)."""
+        src = tmp_path / "src"
+        src.mkdir()
+        # util.py is depended on by app.py
+        (src / "util.py").write_text("def helper(): pass\n")
+        (src / "app.py").write_text(
+            "from src.util import helper\ndef main(): helper()\n"
+        )
+        (src / "orphan.py").write_text("def nobody(): pass\n")
+
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_path), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "index"])
+        runner.invoke(cli, ["--repo", str(tmp_path), "scan"])
+        result = runner.invoke(
+            cli, ["--repo", str(tmp_path), "coverage", "--gaps", "--json"]
+        )
+        data = json.loads(result.output)
+        if len(data["gap_files"]) >= 2:
+            # First gap should have >= as many dependents as second
+            assert data["gap_files"][0]["depended_on_by"] >= data["gap_files"][1]["depended_on_by"]
+
+
+# ---------------------------------------------------------------------------
+# diff command
+# ---------------------------------------------------------------------------
+
+
+class TestCliDiff:
+    """Tests for the diff command."""
+
+    def test_diff_no_changes(self, tmp_repo):
+        """diff against baseline with no changes reports nothing."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff"])
+        assert result.exit_code == 0
+        assert "no element changes" in result.output.lower()
+
+    def test_diff_detects_signature_change(self, tmp_repo):
+        """diff detects a signature change against baseline."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        auth = tmp_repo / "src" / "auth.py"
+        auth.write_text(auth.read_text().replace(
+            "strict: bool = True", "mode: str = 'fast'"
+        ))
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        assert len(data["changed_elements"]) > 0
+        types = [c["change_type"] for c in data["changed_elements"]]
+        assert "signature" in types
+
+    def test_diff_shows_affected_docs(self, tmp_repo):
+        """diff shows which docs are affected by the changes."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        auth = tmp_repo / "src" / "auth.py"
+        auth.write_text(auth.read_text().replace(
+            "strict: bool = True", "mode: str = 'fast'"
+        ))
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        data = json.loads(result.output)
+        doc_paths = [d["doc"] for d in data["affected_docs"]]
+        assert any("auth" in d for d in doc_paths)
+
+    def test_diff_json_structure(self, tmp_repo):
+        """diff --json has expected keys."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        data = json.loads(result.output)
+        assert "base" in data
+        assert "changed_elements" in data
+        assert "affected_docs" in data
+
+    def test_diff_text_output(self, tmp_repo):
+        """diff text output contains readable summary."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        cache = tmp_repo / "src" / "cache.py"
+        cache.write_text(cache.read_text().replace(
+            "def cache_lookup(key: str) -> str:",
+            'def cache_lookup(key: str, ttl: int = 60) -> str:',
+        ))
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff"])
+        assert result.exit_code == 0
+        assert "changed" in result.output.lower()
+
+    def test_diff_detects_deleted_element(self, tmp_repo):
+        """diff flags a deleted/renamed function as 'deleted' and reports affected docs."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        # Rename authenticate → login (old name deleted, new name added)
+        auth = tmp_repo / "src" / "auth.py"
+        auth.write_text(auth.read_text().replace(
+            "def authenticate(", "def login("
+        ))
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        types = [c["change_type"] for c in data["changed_elements"]]
+        assert "deleted" in types
+        # The doc referencing authenticate should be flagged
+        doc_paths = [d["doc"] for d in data["affected_docs"]]
+        assert any("auth" in d for d in doc_paths)
+
+    def test_diff_no_false_positive_from_excluded_files(self, tmp_repo):
+        """diff must not flag elements from files excluded after baseline."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        # Now add an exclude pattern that hides src/cache.py
+        (tmp_repo / "pyproject.toml").write_text(
+            '[tool.doc-updater]\nexclude = ["src/cache.py"]\n'
+        )
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # cache.py elements should NOT be flagged as deleted
+        deleted = [c for c in data["changed_elements"]
+                   if c["change_type"] == "deleted"]
+        assert not any("cache" in d["element_id"] for d in deleted)
+
+    def test_diff_detects_real_file_deletion(self, tmp_repo):
+        """diff flags elements from a genuinely deleted file."""
+        runner = CliRunner()
+        runner.invoke(cli, ["--repo", str(tmp_repo), "init"])
+        runner.invoke(cli, ["--repo", str(tmp_repo), "check", "--baseline"])
+
+        # Actually delete the file from disk
+        (tmp_repo / "src" / "cache.py").unlink()
+        result = runner.invoke(cli, ["--repo", str(tmp_repo), "diff", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        deleted = [c for c in data["changed_elements"]
+                   if c["change_type"] == "deleted"]
+        assert any("cache" in d["element_id"] for d in deleted)

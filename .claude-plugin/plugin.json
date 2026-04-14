@@ -1,0 +1,8 @@
+{
+  "name": "doc-updater",
+  "version": "0.1.0",
+  "description": "Detect stale documentation. Track code-to-doc relationships and flag docs that need updating when code changes.",
+  "author": {
+    "name": "doc-updater"
+  }
+}
