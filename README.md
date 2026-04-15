@@ -1,8 +1,10 @@
-# docsight
+<p align="center">
+  <img src="assets/docsight-hero.png" alt="docsight — detect stale docs before they bite" width="700">
+</p>
 
-Detect stale documentation by analyzing code-to-doc relationships.
-
-**docsight** builds a graph of your Python codebase, scans your markdown docs for references to code elements, and tells you exactly which docs are stale when code changes — including transitive dependencies.
+<p align="center">
+  <strong>docsight</strong> builds a graph of your Python codebase, scans your markdown docs for references to code elements, and tells you exactly which docs are stale when code changes — including transitive dependencies.
+</p>
 
 ---
 
