@@ -1,5 +1,6 @@
 ---
 description: Check if documentation is stale and explain what drifted
+argument-hint: '[--baseline] [--json] [--direct-only] [--max-hops N]'
 allowed-tools: Bash(docsight:*), Read, Grep, Glob, Edit
 ---
 

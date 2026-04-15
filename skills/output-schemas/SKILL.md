@@ -122,3 +122,41 @@ Reference this skill when parsing `--json` output from any docsight command.
 
 **Key fields:**
 - `depended_on_by`: number of other files that depend on this file (higher = more critical to document)
+
+## `docsight audit --json`
+
+```json
+{
+  "timestamp": "2026-04-15T10:48:47",
+  "docs_total": 14,
+  "docs_stale": 1,
+  "docs_possibly_stale": 0,
+  "stale_docs": ["docs/auth-guide.md"],
+  "api_total": 46,
+  "api_documented": 41,
+  "coverage_pct": 89.1,
+  "gap_files_total": 2,
+  "gap_elements_total": 5,
+  "top_gaps": [
+    {"file": "src/config.py", "public_api": 4, "depended_on_by": 3}
+  ]
+}
+```
+
+## `docsight audit --compare --json`
+
+```json
+{
+  "previous": { "...same structure as audit..." },
+  "current": { "...same structure as audit..." },
+  "changes": {
+    "coverage_pct": 7.7,
+    "docs_stale": -3,
+    "gap_files": -7,
+    "gap_elements": -49
+  }
+}
+```
+
+**Key fields:**
+- `changes.*`: positive = increased, negative = decreased. For `coverage_pct` positive is good; for others negative is good.

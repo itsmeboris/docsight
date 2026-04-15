@@ -1,6 +1,6 @@
 ---
 description: Generate the interactive dependency graph and open it
-argument-hint: '[--flat] [--export json]'
+argument-hint: '[--flat] [--export html|json] [-o PATH]'
 allowed-tools: Bash(docsight:*), Bash(open:*), Bash(xdg-open:*)
 ---
 

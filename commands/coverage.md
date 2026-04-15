@@ -1,6 +1,6 @@
 ---
 description: Understand what your docs cover and where the real gaps are
-argument-hint: '[--gaps]'
+argument-hint: '[--gaps] [--all-elements] [--include-private]'
 allowed-tools: Bash(docsight:*), Read, Grep, Glob
 ---
 

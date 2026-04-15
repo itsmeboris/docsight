@@ -1,6 +1,6 @@
 ---
 description: Understand the blast radius before changing code
-argument-hint: '<element-or-file>'
+argument-hint: '<element-or-file> [--max-hops N] [--json]'
 allowed-tools: Bash(docsight:*), Read, Grep
 ---
 

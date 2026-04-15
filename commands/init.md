@@ -1,5 +1,6 @@
 ---
 description: Initialize docsight in the current repo and set the baseline
+argument-hint: '[--no-baseline]'
 allowed-tools: Bash(docsight:*)
 ---
 

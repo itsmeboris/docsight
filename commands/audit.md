@@ -1,6 +1,6 @@
 ---
 description: Semantic audit — what do your docs cover, what's missing, what matters
-argument-hint: '[--save] [--compare] [path/to/specific/doc.md]'
+argument-hint: '[--save] [--compare] [--json]'
 allowed-tools: Bash(docsight:*), Read, Grep, Glob
 ---
 

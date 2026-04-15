@@ -1,5 +1,6 @@
 ---
 description: Generate the HTML report with file-level drill-down
+argument-hint: '[-o PATH]'
 allowed-tools: Bash(docsight:*), Bash(open:*), Bash(xdg-open:*)
 ---
 
