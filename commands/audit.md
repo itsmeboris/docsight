@@ -1,6 +1,6 @@
 ---
 description: Semantic audit — what do your docs cover, what's missing, what matters
-argument-hint: '[path/to/specific/doc.md]'
+argument-hint: '[--save] [--compare] [path/to/specific/doc.md]'
 allowed-tools: Bash(docsight:*), Read, Grep, Glob
 ---
 
@@ -8,6 +8,25 @@ Analyze documentation quality semantically. This is NOT a line count — it read
 your docs and code to understand what's covered and what's missing.
 
 Raw arguments: `$ARGUMENTS`
+
+## If `--compare` is in the arguments
+
+Run the comparison against the last saved audit:
+```bash
+docsight audit --compare --json
+```
+Present the deltas: "Since last audit: coverage went from 58% to 64%,
+2 gap files were addressed, 1 new stale doc appeared."
+Then read any newly stale docs and explain what drifted.
+
+## If `--save` is in the arguments
+
+Save the snapshot after analysis:
+```bash
+docsight audit --save
+```
+Confirm: "Audit snapshot saved. Run `/docsight:audit --compare` next time
+to see what changed."
 
 ## If a specific doc is given
 

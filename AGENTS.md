@@ -46,6 +46,9 @@
 - `diff` deleted-element detection must use exclude patterns (not file existence) to suppress false positives — files that fail to parse must still flag their missing elements
 - `impact` command uses reverse BFS (`impact_radius`) and cross-references mappings to find affected docs
 - `coverage --gaps` finds files with zero documented public API, sorted by dependency weight
+- Docsight CLI is the **data layer**; the AI agent (plugin commands/skills) is the **intelligence layer** — commands must read actual files and explain semantically, never dump JSON or element IDs at the user
+- `expand_file_path_docs()` in config.py is the shared function for file-path doc attribution — used by coverage, report, and graph to stay consistent
+- Built-in excludes (`.claude/worktrees/`, `.worktrees/`, `node_modules/`, `.git/`, `__pycache__/`) are always merged with user config in `get_exclude_patterns()`
 - `init` auto-runs index + scan + baseline by default; use `--no-baseline` to skip
 - Pre-push hook must drain stdin (`cat > /dev/null`) and guard with `command -v docsight` for portability
 - `diff --base REF` must use three-dot merge-base syntax (`REF...HEAD`) for correct PR semantics

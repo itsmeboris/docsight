@@ -1054,6 +1054,220 @@ def _coverage_gaps(
 
 
 # ---------------------------------------------------------------------------
+# audit command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option("--save", is_flag=True, default=False,
+              help="Persist findings to .docsight/audit.json.")
+@click.option("--compare", is_flag=True, default=False,
+              help="Compare current state against the last saved audit.")
+@click.option("--json", "output_json", is_flag=True, default=False,
+              help="Output JSON.")
+@click.pass_context
+def audit(ctx: click.Context, save: bool, compare: bool,
+          output_json: bool) -> None:
+    """Generate a documentation health snapshot (save/compare over time)."""
+    import json as _json
+
+    repo: Path = ctx.obj["repo"]
+    store_dir = repo / ".docsight"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    store = JsonStore(store_dir)
+    config = load_config(repo)
+    exclude = get_exclude_patterns(config)
+
+    _run_index(repo, store, exclude=exclude)
+    _run_scan(repo, store, exclude=exclude)
+
+    elements = store.load_index()
+    edges = store.load_edges()
+    mappings = store.load_mappings()
+    state = store.load_state()
+
+    # Build documented set with file-path expansion
+    documented_eids: set[str] = set()
+    for doc_data in mappings.values():
+        for ref in doc_data.get("mapped", []):
+            documented_eids.add(ref.get("element_id", ""))
+    documented_eids = expand_file_path_docs(documented_eids, elements)
+
+    # Staleness summary
+    last_report = state.get("last_report", {})
+    n_docs = sum(1 for v in last_report.values() if isinstance(v, dict))
+    n_stale = sum(
+        1 for v in last_report.values()
+        if isinstance(v, dict) and v.get("status") in ("stale", "STALE")
+    )
+    n_possibly = sum(
+        1 for v in last_report.values()
+        if isinstance(v, dict)
+        and v.get("status") in ("possibly_stale", "POSSIBLY_STALE")
+    )
+    stale_docs = [
+        k for k, v in last_report.items()
+        if isinstance(v, dict) and v.get("status") in ("stale", "STALE")
+    ]
+
+    # Coverage (API-only)
+    api_total = 0
+    api_documented = 0
+    for eid, elem in elements.items():
+        if eid.endswith("::__module__"):
+            continue
+        name = elem.name if hasattr(elem, "name") else ""
+        if name.startswith("_"):
+            continue
+        kind = elem.kind.value if hasattr(elem, "kind") else ""
+        parent = elem.parent if hasattr(elem, "parent") else None
+        if kind == "METHOD" or (kind == "FUNCTION" and parent is not None):
+            continue
+        api_total += 1
+        if eid in documented_eids:
+            api_documented += 1
+    coverage_pct = round(
+        (api_documented / api_total * 100) if api_total else 100.0, 1
+    )
+
+    # Gaps (top by dependency weight)
+    dep_graph = CodeGraph()
+    for eid, el in elements.items():
+        dep_graph.add_element(eid, el.kind.value)
+    for edge in edges:
+        dep_graph.add_edge(edge)
+
+    file_api: dict[str, list[str]] = {}
+    for eid, elem in elements.items():
+        if eid.endswith("::__module__"):
+            continue
+        name = elem.name if hasattr(elem, "name") else ""
+        if name.startswith("_"):
+            continue
+        kind = elem.kind.value if hasattr(elem, "kind") else ""
+        parent = elem.parent if hasattr(elem, "parent") else None
+        if kind == "METHOD" or (kind == "FUNCTION" and parent is not None):
+            continue
+        file_path = elem.file if hasattr(elem, "file") else ""
+        file_api.setdefault(file_path, []).append(eid)
+
+    gap_files: list[dict] = []
+    for file_path, api_eids in sorted(file_api.items()):
+        if any(e in documented_eids for e in api_eids):
+            continue
+        all_file_eids = {
+            eid for eid, el in elements.items()
+            if (el.file if hasattr(el, "file") else "") == file_path
+        }
+        dep_files: set[str] = set()
+        for eid in all_file_eids:
+            for dep_eid, _hops in dep_graph.get_dependents(eid, max_hops=1):
+                dep_file = dep_eid.split("::")[0] if "::" in dep_eid else ""
+                if dep_file and dep_file != file_path:
+                    dep_files.add(dep_file)
+        gap_files.append({
+            "file": file_path,
+            "public_api": len(api_eids),
+            "depended_on_by": len(dep_files),
+        })
+    gap_files.sort(key=lambda g: (-g["depended_on_by"], g["file"]))
+
+    snapshot = {
+        "timestamp": __import__("time").strftime("%Y-%m-%dT%H:%M:%S"),
+        "docs_total": n_docs,
+        "docs_stale": n_stale,
+        "docs_possibly_stale": n_possibly,
+        "stale_docs": stale_docs,
+        "api_total": api_total,
+        "api_documented": api_documented,
+        "coverage_pct": coverage_pct,
+        "gap_files_total": len(gap_files),
+        "gap_elements_total": sum(g["public_api"] for g in gap_files),
+        "top_gaps": gap_files[:10],
+    }
+
+    if compare:
+        audit_path = store_dir / "audit.json"
+        if not audit_path.exists():
+            click.echo("No previous audit found. Run with --save first.", err=True)
+            sys.exit(1)
+        previous = _json.loads(audit_path.read_text(encoding="utf-8"))
+        diff_data = {
+            "previous": previous,
+            "current": snapshot,
+            "changes": {
+                "coverage_pct": snapshot["coverage_pct"] - previous["coverage_pct"],
+                "docs_stale": snapshot["docs_stale"] - previous["docs_stale"],
+                "gap_files": snapshot["gap_files_total"] - previous["gap_files_total"],
+                "gap_elements": (
+                    snapshot["gap_elements_total"] - previous["gap_elements_total"]
+                ),
+            },
+        }
+        if output_json:
+            click.echo(_json.dumps(diff_data, indent=2))
+        else:
+            console = rich.console.Console()
+            prev_t = previous.get("timestamp", "unknown")
+            console.print(f"\n[bold]Audit comparison[/bold] ({prev_t} → now)\n")
+            _audit_delta(console, "Coverage", previous["coverage_pct"],
+                         snapshot["coverage_pct"], "%", higher_good=True)
+            _audit_delta(console, "Stale docs", previous["docs_stale"],
+                         snapshot["docs_stale"], "", higher_good=False)
+            _audit_delta(console, "Gap files", previous["gap_files_total"],
+                         snapshot["gap_files_total"], "", higher_good=False)
+            _audit_delta(console, "Gap elements", previous["gap_elements_total"],
+                         snapshot["gap_elements_total"], "", higher_good=False)
+            console.print()
+        return
+
+    if save:
+        audit_path = store_dir / "audit.json"
+        audit_path.write_text(
+            _json.dumps(snapshot, indent=2), encoding="utf-8"
+        )
+        click.echo(f"Audit saved to {audit_path}")
+
+    if output_json:
+        click.echo(_json.dumps(snapshot, indent=2))
+    else:
+        console = rich.console.Console()
+        console.print("\n[bold]Documentation Health Snapshot[/bold]\n")
+        console.print(f"  Docs:     {n_docs} total, "
+                      f"[red]{n_stale}[/red] stale, "
+                      f"[yellow]{n_possibly}[/yellow] possibly stale")
+        console.print(f"  Coverage: {api_documented}/{api_total} "
+                      f"public API ([bold]{coverage_pct}%[/bold])")
+        console.print(f"  Gaps:     {len(gap_files)} files, "
+                      f"{sum(g['public_api'] for g in gap_files)} elements")
+        if gap_files[:5]:
+            console.print("\n  [bold]Top gaps:[/bold]")
+            for g in gap_files[:5]:
+                dep = f"{g['depended_on_by']} deps" if g["depended_on_by"] else "—"
+                console.print(f"    {g['file']:50s}  {dep}")
+        console.print()
+
+
+def _audit_delta(console, label: str, old, new, suffix: str,
+                 higher_good: bool) -> None:
+    """Print a before→after line with color."""
+    delta = new - old
+    if delta == 0:
+        color = "dim"
+        sign = ""
+    elif (delta > 0) == higher_good:
+        color = "green"
+        sign = "+"
+    else:
+        color = "red"
+        sign = "+" if delta > 0 else ""
+    console.print(
+        f"  {label:16s}  {old}{suffix} → {new}{suffix}  "
+        f"[{color}]({sign}{delta}{suffix})[/{color}]"
+    )
+
+
+# ---------------------------------------------------------------------------
 # impact command
 # ---------------------------------------------------------------------------
 
