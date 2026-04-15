@@ -1,6 +1,6 @@
 ---
 description: Explain what docs need updating for your code changes
-argument-hint: '[--base REF]'
+argument-hint: '[--base REF] [--json] [--max-hops N]'
 allowed-tools: Bash(docsight:*), Bash(git:*), Read, Grep, Glob, Edit
 ---
 
